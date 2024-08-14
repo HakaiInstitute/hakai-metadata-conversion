@@ -37,11 +37,11 @@ def zenodo(record, language=None):
         
     return {
         "upload_type": 'dataset', #TODO Retrieve the right term in record
-        "title": record["identification"]["title"],
+        "title": record["identification"]["title"][language],
         "creators": _get_creators(record),
         "description": record["identification"]["abstract"][language],   
         # "access_right": record["access_right"],
-        "license": record["metadata"]["use_constraints"]['licence']['code'],
+        "license": record["metadata"]["use_constraints"].get('licence',{}).get('code'),
         # embargo_date": record["embargo_date"],
         # access_conditions": record["access_conditions"],
         # "doi": record["doi"],
