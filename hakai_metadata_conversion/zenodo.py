@@ -1,7 +1,7 @@
 def _get_creator(creator):
         return {
             "name": creator.get("individual",{}).get('name'),
-            "affiliation": creator["organization"]['name'],
+            "affiliation": creator.get("organization",{}).get('name'),
             "orcid": creator.get("individual",{}).get('orcid'),
             # "gnd": creator.get("gnd")
         }
@@ -16,6 +16,18 @@ def _get_contributors(record):
     """Convert Hakai metadata contributors to Zenodo format."""
     return [
          _get_creator(contributor) for contributor in record["contact"]
+    ]
+
+def _get_related_identifiers(record):
+    """Convert Hakai metadata related identifiers to Zenodo format."""
+    if "identifier" not in record["identification"]:
+        return []
+    return [
+        {
+            "identifier": record["identification"]["identifier"],
+            "relation": "isMetadataFor",
+            "resource_type": "publication_type",
+        },
     ]
 
 def zenodo(record, language=None):
@@ -35,17 +47,11 @@ def zenodo(record, language=None):
         # "doi": record["doi"],
         # "preserve_doi": record["preserve_doi"],
         "keywords": record["identification"]["keywords"]['default'][language],
-        "notes": record["metadata"]['history'],
-        "related_identifiers":  [
-            {
-                "identifier": record["identification"]["identifier"],
-                "relation": "isMetadataFor",
-                "resource_type": "publication_type",
-            },
-        ],
+        "notes": record["metadata"].get('history'),
+        "related_identifiers":  _get_related_identifiers(record),
         "contributors": _get_contributors(record),
         # "references": record["references"],
-        "version": record["identification"]['edition'],
+        "version": record["identification"].get('edition'),
         "language": record['metadata']['language'],
         # "locations": record["locations"],
     }
