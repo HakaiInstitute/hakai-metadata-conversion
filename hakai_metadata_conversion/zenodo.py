@@ -5,9 +5,9 @@ def _get_creator(creator):
 
 def _get_organization(organization):
     return {
-        "name": organization.get('name'),
-        "address": organization.get('ror'),
-        "affiliation": organization.get('name'),
+        "name": organization.get("organization",{}).get('name'),
+        "ror": organization.get("organization",{}).get('ror'),
+        "affiliation": organization.get("organization",{}).get('name'),
     }
 
 def _get_person(person):
