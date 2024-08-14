@@ -31,14 +31,12 @@ def _get_contributors(record):
 
 def _get_related_identifiers(record):
     """Convert Hakai metadata related identifiers to Zenodo format."""
-    if "identifier" not in record["identification"]:
-        return []
     return [
         {
-            "identifier": record["identification"]["identifier"],
-            "relation": "isMetadataFor",
-            "resource_type": "publication_type",
-        },
+            "identifier": identifier['value'],
+            "relation": "isVersionOf",
+        }
+        for identifier in record.get("identifiers",[])
     ]
 
 def zenodo(record, language=None):
