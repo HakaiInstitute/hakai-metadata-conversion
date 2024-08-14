@@ -1,11 +1,22 @@
 def _get_creator(creator):
-        return {
-            "name": creator.get("individual",{}).get('name'),
-            "affiliation": creator.get("organization",{}).get('name'),
-            "orcid": creator.get("individual",{}).get('orcid'),
-            # "gnd": creator.get("gnd")
-        }
+        if creator.get("individual",{}).get('name'):
+            return _get_person(creator)
+        return _get_organization(creator)
 
+def _get_organization(organization):
+    return {
+        "name": organization.get('name'),
+        "address": organization.get('ror'),
+        "affiliation": organization.get('name'),
+    }
+
+def _get_person(person):
+     return {
+        "name": person.get("individual",{}).get('name'),
+        "affiliation": person.get("organization",{}).get('name'),
+        "orcid": person.get("individual",{}).get('orcid'),
+        # "gnd": person.get("gnd")
+     }
 def _get_creators(record):
     """Convert Hakai metadata creators to Zenodo format."""
     return [
