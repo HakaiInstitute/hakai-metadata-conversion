@@ -11,6 +11,7 @@ from hakai_metadata_conversion.zenodo import zenodo
 
 ZENODO_TOKEN = os.getenv("ZENODO_ACCESS_TOKEN")
 ZENODO_SUBMISSION_TEST = os.getenv("ZENODO_SUBMISSION_TEST")
+DEPOSIT_ID = os.getenv("DEPOSIT_ID")
 RATE_LIMIT = 1 # delay between requests
 
 @pytest.mark.parametrize("file", glob("tests/records/**/*.yaml", recursive=True))
@@ -21,13 +22,14 @@ def test_zenodo_record(file):
 
 @pytest.mark.skipif(not ZENODO_TOKEN, reason="ZENODO_ACCESS_TOKEN not set")
 @pytest.mark.skipif(not ZENODO_SUBMISSION_TEST, reason="ZENODO_SUBMISSION_TEST not set")
+@pytest.mark.skipif(not DEPOSIT_ID, reason="DEPOSIT_ID not set")
 @pytest.mark.parametrize("file", glob("tests/records/**/*.yaml", recursive=True))
 def test_zenodo_submission(file):
     record = load(file, "yaml")
     result = zenodo(record)
     time.sleep(RATE_LIMIT)
     response = requests.put(
-        "https://sandbox.zenodo.org/api/deposit/depositions/100611",
+        f"https://sandbox.zenodo.org/api/deposit/depositions/{DEPOSIT_ID}",
         data=json.dumps({"metadata": result}),
         params={"access_token": ZENODO_TOKEN},
         headers={"Content-Type": "application/json"},
