@@ -64,14 +64,20 @@ def _get_person(person, role=None):
 
 
 def _get_creators(record):
-    """Convert Hakai metadata creators to Zenodo format."""
+    """Convert Hakai metadata creators to Zenodo format.
+    
+    Creators are the people or organizations that appear in the citation of the dataset.
+    """
     return [
         _get_creator(creator) for creator in record["contact"] if creator["inCitation"]
     ]
 
 
 def _get_contributors(record):
-    """Convert Hakai metadata contributors to Zenodo format."""
+    """Convert Hakai metadata contributors to Zenodo format.
+    
+    Contributors are the contacts with their roles in the dataset.
+    """
     return [
         _get_creator(contributor, role)
         for contributor in record["contact"]
