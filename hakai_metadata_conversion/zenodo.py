@@ -94,11 +94,11 @@ def _get_dates(record):
             "description": description,
         })
     
-    _add_date("created",record["identification"].get("dates",{}).get("creation"))
-    _add_date("available",record["identification"].get("dates",{}).get("publication"),description="Date of date publication")
+    _add_date("created",record["identification"].get("dates",{}).get("creation"),description="Date of dataset creation")
+    _add_date("available",record["identification"].get("dates",{}).get("publication"),description="Date of dataset publication")
     _add_date("submitted",record["metadata"].get("dates",{}).get("publication"), description="Date of metadate publication")
     _add_date("updated",record["metadata"].get("dates",{}).get("revision"),description="Date of metadata revision")
-    _add_date("collected",record["identification"].get("temporal_begin"),record["identification"].get("temporal_end"))
+    _add_date("collected",record["identification"].get("temporal_begin"),record["identification"].get("temporal_end"), description="Data Collection period")
     return dates
 
 
