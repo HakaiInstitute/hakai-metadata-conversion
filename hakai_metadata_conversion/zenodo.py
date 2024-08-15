@@ -127,7 +127,7 @@ def zenodo(record, language=None):
         "related_identifiers": _get_related_identifiers(record),
         # "references": record["references"],
         "dates": _get_dates(record),
-        "version": record["identification"].get("edition"),
+        "version": record["identification"].get("edition",'v1'),
         "language": record["metadata"]["language"],
         # "locations": record["locations"],
     }
