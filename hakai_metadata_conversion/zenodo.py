@@ -6,26 +6,60 @@ from hakai_metadata_conversion.__version__ import version
 # The api docs is limited regarding that 
 # The ror field is not recognized by the api
 
-def _get_creator(creator):
+hakai_roles_to_zenodo_roles = {
+    "pointOfContact": "ContactPerson",  
+    "custodian": "DataCurator",
+    "distributor": "Distributor",
+    "principalInvestigator": "ProjectLeader",
+    "owner": "RightsHolder",
+    "funder": "Sponsor",
+    "processor": "Editor",
+    "originator": "Producer",
+    "author": "ProjectLeader",
+    "coAuthor": "ProjectMember",
+    "contributor": "RelatedPerson",
+    "resourceProvider": "DataCollector",
+    "publisher": "Distributor",
+    "editor": "Editor",
+    "collaborator": "RelatedPerson",
+    "rightsHolder": "RightsHolder",
+    "sponsor": "Sponsor",
+}
+
+def _get_contributor_role(contributor):
+    roles = []
+    for role in contributor.get("roles",[]):
+        if role in hakai_roles_to_zenodo_roles:
+            roles.append(hakai_roles_to_zenodo_roles[role])
+            continue
+        logger.warning(f"Role {role} not found in hakai_roles_to_zenodo_roles")
+        roles.append("Other")
+    return set(roles)
+
+
+
+def _get_creator(creator, role=None):
     if creator.get("individual", {}).get("name"):
-        return _get_person(creator)
-    return _get_organization(creator)
+        return _get_person(creator, role)
+    return _get_organization(creator, role)
 
 
-def _get_organization(organization):
+def _get_organization(organization, role=None):
     return {
         "name": organization.get("organization", {}).get("name"),
         "ror": organization.get("organization", {}).get("ror",'').replace("https://ror.org/",""),
         "affiliation": organization.get("organization", {}).get("name"),
+        **({'type': role} if role else {}),
     }
 
 
-def _get_person(person):
+def _get_person(person, role=None):
     return {
         "name": person.get("individual", {}).get("name"),
         "affiliation": person.get("organization", {}).get("name"),
         "orcid": person.get("individual", {}).get("orcid"),
         # "gnd": person.get("gnd")
+        **({'type': role} if role else {}),
     }
 
 
@@ -39,9 +73,9 @@ def _get_creators(record):
 def _get_contributors(record):
     """Convert Hakai metadata contributors to Zenodo format."""
     return [
-        _get_creator(contributor)
+        _get_creator(contributor, role)
         for contributor in record["contact"]
-        if not contributor["inCitation"]
+        for role in _get_contributor_role(contributor)
     ]
 
 
