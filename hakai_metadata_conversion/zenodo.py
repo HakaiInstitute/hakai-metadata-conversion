@@ -12,7 +12,7 @@ def _get_creator(creator):
 def _get_organization(organization):
     return {
         "name": organization.get("organization", {}).get("name"),
-        "identifier": organization.get("organization", {}).get("ror"),
+        "ror": organization.get("organization", {}).get("ror",'123'),
         "affiliation": organization.get("organization", {}).get("name"),
     }
 
