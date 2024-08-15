@@ -81,6 +81,17 @@ def _get_related_identifiers(record):
     # TODO missing related works section which I'm not sure belongs here
     return identifiers
 
+def _get_notes(record):
+    """Convert Hakai metadata notes to Zenodo format."""
+    notes= []
+    if record["metadata"].get("maintenance_note"):
+        notes.append(record["metadata"]["maintenance_note"])
+    notes.append(
+        "Metadata converted by "
+        "<a href='https://github.com/HakaiInstitute/hakai-metadata-conversion'>hakai-metadata-conversion v{version} </a>"
+    )
+    return '<br><br>'.join(notes)
+
 
 def _get_dates(record):
     """Convert Hakai metadata dates to Zenodo format."""
@@ -131,10 +142,7 @@ def zenodo(record, language=None):
         # "doi": ignore this to generate a new DOI,
         # "preserve_doi": record["preserve_doi"],
         "keywords": record["identification"]["keywords"]["default"][language],
-        "notes": record["metadata"].get("maintenance_note", "")
-        + "\n\n"
-        + f"Converted by hakai-metadata-conversion v{version}",
-        "related_identifiers": _get_related_identifiers(record),
+        "notes": _get_notes(record),
         # "references": record["references"],
         "dates": _get_dates(record),
         "version": record["identification"].get("edition",'v1'),
