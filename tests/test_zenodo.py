@@ -1,7 +1,7 @@
-from glob import glob
-import os
 import json
+import os
 import time
+from glob import glob
 
 import pytest
 import requests
@@ -12,13 +12,15 @@ from hakai_metadata_conversion.zenodo import zenodo
 ZENODO_TOKEN = os.getenv("ZENODO_ACCESS_TOKEN")
 ZENODO_SUBMISSION_TEST = os.getenv("ZENODO_SUBMISSION_TEST")
 DEPOSIT_ID = os.getenv("DEPOSIT_ID")
-RATE_LIMIT = 1 # delay between requests
+RATE_LIMIT = 1  # delay between requests
+
 
 @pytest.mark.parametrize("file", glob("tests/records/**/*.yaml", recursive=True))
 def test_zenodo_record(file):
     record = load(file, "yaml")
     result = zenodo(record)
     assert result
+
 
 @pytest.mark.skipif(not ZENODO_TOKEN, reason="ZENODO_ACCESS_TOKEN not set")
 @pytest.mark.skipif(not ZENODO_SUBMISSION_TEST, reason="ZENODO_SUBMISSION_TEST not set")

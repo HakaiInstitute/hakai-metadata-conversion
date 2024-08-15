@@ -1,15 +1,16 @@
-from loguru import logger
 import os
+
+from loguru import logger
 
 from hakai_metadata_conversion.__version__ import version
 
-#FIXME zenodo do not recognize organizations vs person
-# The api docs is limited regarding that 
+# FIXME zenodo do not recognize organizations vs person
+# The api docs is limited regarding that
 # The ror field is not recognized by the api
 RAISE_ERRORS = os.getenv("RAISE_ERRORS", False)
 
 hakai_roles_to_zenodo_roles = {
-    "pointOfContact": "ContactPerson",  
+    "pointOfContact": "ContactPerson",
     "custodian": "DataCurator",
     "distributor": "Distributor",
     "principalInvestigator": "ProjectLeader",
@@ -28,9 +29,10 @@ hakai_roles_to_zenodo_roles = {
     "sponsor": "Sponsor",
 }
 
+
 def _get_contributor_role(contributor):
     roles = []
-    for role in contributor.get("roles",[]):
+    for role in contributor.get("roles", []):
         if role in hakai_roles_to_zenodo_roles:
             roles.append(hakai_roles_to_zenodo_roles[role])
             continue
@@ -39,7 +41,6 @@ def _get_contributor_role(contributor):
         logger.warning(f"Role {role} not found in hakai_roles_to_zenodo_roles")
         roles.append("Other")
     return set(roles)
-
 
 
 def _get_creator(creator, role=None):
@@ -51,9 +52,11 @@ def _get_creator(creator, role=None):
 def _get_organization(organization, role=None):
     return {
         "name": organization.get("organization", {}).get("name"),
-        "ror": organization.get("organization", {}).get("ror",'').replace("https://ror.org/",""),
+        "ror": organization.get("organization", {})
+        .get("ror", "")
+        .replace("https://ror.org/", ""),
         "affiliation": organization.get("organization", {}).get("name"),
-        **({'type': role} if role else {}),
+        **({"type": role} if role else {}),
     }
 
 
@@ -63,13 +66,13 @@ def _get_person(person, role=None):
         "affiliation": person.get("organization", {}).get("name"),
         "orcid": person.get("individual", {}).get("orcid"),
         # "gnd": person.get("gnd")
-        **({'type': role} if role else {}),
+        **({"type": role} if role else {}),
     }
 
 
 def _get_creators(record):
     """Convert Hakai metadata creators to Zenodo format.
-    
+
     Creators are the people or organizations that appear in the citation of the dataset.
     """
     return [
@@ -79,7 +82,7 @@ def _get_creators(record):
 
 def _get_contributors(record):
     """Convert Hakai metadata contributors to Zenodo format.
-    
+
     Contributors are the contacts with their roles in the dataset.
     """
     return [
@@ -92,29 +95,40 @@ def _get_contributors(record):
 hakai_relations_to_zenodo_relations = {
     "largerWorkCitation": "isPartOf",
     "isComposedOf": "hasPart",
-    'crossReference': 'isReferencedBy',
-    "dependency": 'isRequiredBy'
+    "crossReference": "isReferencedBy",
+    "dependency": "isRequiredBy",
 }
 
 hakai_authorities_to_zenodo_schemes = {
     "URL": "url",
     "DOI": "doi",
 }
+
+
 def _get_zenodo_relation(relation):
     if relation in hakai_relations_to_zenodo_relations:
         return hakai_relations_to_zenodo_relations[relation]
     if RAISE_ERRORS:
-        raise ValueError(f"Relation {relation} not found in hakai_relations_to_zenodo_relations")
-    logger.warning(f"Relation {relation} not found in hakai_relations_to_zenodo_relations")
-    return 'Other'
+        raise ValueError(
+            f"Relation {relation} not found in hakai_relations_to_zenodo_relations"
+        )
+    logger.warning(
+        f"Relation {relation} not found in hakai_relations_to_zenodo_relations"
+    )
+    return "Other"
+
 
 def _get_zenodo_scheme(authority):
     if authority in hakai_authorities_to_zenodo_schemes:
         return hakai_authorities_to_zenodo_schemes[authority]
     if RAISE_ERRORS:
-        raise ValueError(f"Relation {relation} not found in hakai_relations_to_zenodo_relations")
-    logger.warning(f"Authority {authority} not found in hakai_authorities_to_zenodo_schemes")
-    return 'Other'
+        raise ValueError(
+            f"Relation {relation} not found in hakai_relations_to_zenodo_relations"
+        )
+    logger.warning(
+        f"Authority {authority} not found in hakai_authorities_to_zenodo_schemes"
+    )
+    return "Other"
 
 
 def _get_related_identifiers(record):
@@ -149,59 +163,85 @@ def _get_related_identifiers(record):
                 "scheme": "url",
             }
         )
-    for resource in record['identification']['associated_resources']:
+    for resource in record["identification"]["associated_resources"]:
         identifiers.append(
             {
-                "identifier": resource['code'].replace("https://doi.org/", ""),
-                "relation": _get_zenodo_relation(resource['association_type_iso']),
+                "identifier": resource["code"].replace("https://doi.org/", ""),
+                "relation": _get_zenodo_relation(resource["association_type_iso"]),
                 "resource_type": "other",
-                "scheme": _get_zenodo_scheme(resource['authority']),
+                "scheme": _get_zenodo_scheme(resource["authority"]),
             }
         )
 
     return identifiers
 
+
 def _get_notes(record):
     """Convert Hakai metadata notes to Zenodo format."""
-    notes= []
+    notes = []
     if record["metadata"].get("maintenance_note"):
         notes.append(record["metadata"]["maintenance_note"])
     notes.append(
         "Metadata converted by "
         "<a href='https://github.com/HakaiInstitute/hakai-metadata-conversion'>hakai-metadata-conversion v{version} </a>"
     )
-    return '<br><br>'.join(notes)
+    return "<br><br>".join(notes)
 
 
 def _get_dates(record):
     """Convert Hakai metadata dates to Zenodo format."""
     dates = []
+
     def _format_date(date):
-        return date.split('T')[0] if date else None
-    def _add_date(date_type,start=None,end=None,description=None):
+        return date.split("T")[0] if date else None
+
+    def _add_date(date_type, start=None, end=None, description=None):
         if not start and not end:
             return
-        dates.append( {
-            "start": _format_date(start),
-            "end": _format_date(end),
-            "type": date_type,
-            "description": description,
-        })
-    
-    _add_date("created",record["identification"].get("dates",{}).get("creation"),description="Date of dataset creation")
-    _add_date("available",record["identification"].get("dates",{}).get("publication"),description="Date of dataset publication")
-    _add_date("submitted",record["metadata"].get("dates",{}).get("publication"), description="Date of metadate publication")
-    _add_date("updated",record["metadata"].get("dates",{}).get("revision"),description="Date of metadata revision")
-    _add_date("collected",record["identification"].get("temporal_begin"),record["identification"].get("temporal_end"), description="Data Collection period")
+        dates.append(
+            {
+                "start": _format_date(start),
+                "end": _format_date(end),
+                "type": date_type,
+                "description": description,
+            }
+        )
+
+    _add_date(
+        "created",
+        record["identification"].get("dates", {}).get("creation"),
+        description="Date of dataset creation",
+    )
+    _add_date(
+        "available",
+        record["identification"].get("dates", {}).get("publication"),
+        description="Date of dataset publication",
+    )
+    _add_date(
+        "submitted",
+        record["metadata"].get("dates", {}).get("publication"),
+        description="Date of metadate publication",
+    )
+    _add_date(
+        "updated",
+        record["metadata"].get("dates", {}).get("revision"),
+        description="Date of metadata revision",
+    )
+    _add_date(
+        "collected",
+        record["identification"].get("temporal_begin"),
+        record["identification"].get("temporal_end"),
+        description="Data Collection period",
+    )
     return dates
+
 
 def _get_licence(record):
     license = record["metadata"]["use_constraints"].get("licence", {}).get("code")
     if not license:
         logger.warning("No license found in metadata, defaulting to CC-BY-4.0")
-        return 'CC-BY-4.0'
+        return "CC-BY-4.0"
     return license
-
 
 
 def zenodo(record, language=None):
@@ -226,7 +266,7 @@ def zenodo(record, language=None):
         "notes": _get_notes(record),
         # "references": record["references"],
         "dates": _get_dates(record),
-        "version": record["identification"].get("edition",'v1'),
+        "version": record["identification"].get("edition", "v1"),
         "language": record["metadata"]["language"],
         # "locations": record["locations"],
     }
