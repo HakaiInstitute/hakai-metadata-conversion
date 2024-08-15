@@ -93,6 +93,7 @@ hakai_relations_to_zenodo_relations = {
     "largerWorkCitation": "isPartOf",
     "isComposedOf": "hasPart",
     'crossReference': 'isReferencedBy',
+    "dependency": 'isRequiredBy'
 }
 
 hakai_authorities_to_zenodo_schemes = {
