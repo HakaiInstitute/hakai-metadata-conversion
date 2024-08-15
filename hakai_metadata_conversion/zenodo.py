@@ -81,39 +81,26 @@ def _get_related_identifiers(record):
 
 def _get_dates(record):
     """Convert Hakai metadata dates to Zenodo format."""
-    dates = [
-        {
-            "start": record["identification"]["dates"].get("creation"),
-            "type": "created",
-        },
-        {
-            "start": record["identification"]["dates"].get("publication"),
-            "type": "available",
-        },
-        {
-            "start": record["metadata"]["dates"].get("publication"),
-            "type": "submitted",
-        },
-        {
-            "start": record["metadata"]["dates"].get("revision"),
-            "type": "updated",
-        },
-        {
-            "start": record["identification"].get("temporal_begin"),
-            "end": record["identification"].get("temporal_end"),
-            "type": "collected",
-        },
-    ]
-    # Drop empty dates
-    dates = [date for date in dates if date["start"] or date.get("end")]
+    dates = []
+    def _format_date(date):
+        return date.split('T')[0] if date else None
+    def _add_date(date_type,start=None,end=None,description=None):
+        if not start and not end:
+            return
+        dates.append( {
+            "start": _format_date(start),
+            "end": _format_date(end),
+            "type": date_type,
+            "description": description,
+        })
+    
+    _add_date("created",record["identification"].get("dates",{}).get("creation"))
+    _add_date("available",record["identification"].get("dates",{}).get("publication"),description="Date of date publication")
+    _add_date("submitted",record["metadata"].get("dates",{}).get("publication"), description="Date of metadate publication")
+    _add_date("updated",record["metadata"].get("dates",{}).get("revision"),description="Date of metadata revision")
+    _add_date("collected",record["identification"].get("temporal_begin"),record["identification"].get("temporal_end"))
     return dates
 
-    return [
-        {
-            "date": record["metadata"]["date"],
-            "type": "created",
-        },
-    ]
 
 
 def zenodo(record, language=None):
@@ -139,7 +126,7 @@ def zenodo(record, language=None):
         + f"Converted by hakai-metadata-conversion v{version}",
         "related_identifiers": _get_related_identifiers(record),
         # "references": record["references"],
-        "datets": _get_dates(record),
+        "dates": _get_dates(record),
         "version": record["identification"].get("edition"),
         "language": record["metadata"]["language"],
         # "locations": record["locations"],
