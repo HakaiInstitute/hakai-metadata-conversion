@@ -1,3 +1,11 @@
+"""This module contains the functions to convert Hakai metadata
+to Zenodo api metadata schema.
+
+For more information about the Zenodo api metadata
+schema, see the
+(Zenodo API documentation)[https://developers.zenodo.org/#representation].
+"""
+
 import os
 
 from loguru import logger
