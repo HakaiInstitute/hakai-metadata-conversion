@@ -2,6 +2,9 @@ from loguru import logger
 
 from hakai_metadata_conversion.__version__ import version
 
+#FIXME zenodo do not recognize organizations vs person
+# The api docs is limited regarding that 
+# The ror field is not recognized by the api
 
 def _get_creator(creator):
     if creator.get("individual", {}).get("name"):
@@ -50,7 +53,7 @@ def _get_related_identifiers(record):
         #     "identifier": record['metadata']['identifier'],
         #     "relation": "isMetadataFor",
         #     "resource_type": "publication",
-        #     "scheme": 'crossRefFunderID',
+        #     "scheme": 'crossref_funder_id', #TODO this failed with zenodo api
         # },
     ]
     if record["identification"].get("identifier"):
@@ -62,7 +65,7 @@ def _get_related_identifiers(record):
                 ),
                 "relation": "isMetadataFor",
                 "resource_type": "publication",
-                "scheme": "doi",  # TODO Retrieve the right term in record
+                "scheme": "doi",
             }
         )
     for item in record["distribution"]:
