@@ -104,6 +104,13 @@ def _get_dates(record):
     _add_date("collected",record["identification"].get("temporal_begin"),record["identification"].get("temporal_end"), description="Data Collection period")
     return dates
 
+def _get_licence(record):
+    license = record["metadata"]["use_constraints"].get("licence", {}).get("code")
+    if not license:
+        logger.warning("No license found in metadata, defaulting to CC-BY-4.0")
+        return 'CC-BY-4.0'
+    return license
+
 
 
 def zenodo(record, language=None):
@@ -118,7 +125,7 @@ def zenodo(record, language=None):
         "contributors": _get_contributors(record),
         "description": record["identification"]["abstract"][language],
         # "access_right": record["access_right"],
-        "license": record["metadata"]["use_constraints"].get("licence", {}).get("code"),
+        "license": _get_licence(record),
         # embargo_date": record["embargo_date"],
         # access_conditions": record["access_conditions"],
         # "doi": ignore this to generate a new DOI,
