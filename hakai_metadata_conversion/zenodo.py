@@ -1,3 +1,5 @@
+from loguru import logger
+from hakai_metadata_conversion.__version__ import version
 def _get_creator(creator):
         if creator.get("individual",{}).get('name'):
             return _get_person(creator)
@@ -31,13 +33,37 @@ def _get_contributors(record):
 
 def _get_related_identifiers(record):
     """Convert Hakai metadata related identifiers to Zenodo format."""
-    return [
-        {
-            "identifier": identifier['value'],
-            "relation": "isVersionOf",
-        }
-        for identifier in record.get("identifiers",[])
-    ]
+    logger.debug("Sort related identifiers")
+    identifiers = [
+        # {
+        #     "identifier": record['metadata']['identifier'],
+        #     "relation": "isMetadataFor",
+        #     "ressource_type": "publication_type",
+        #     "scheme": 'crossRefFunderID',
+        # },
+    ] 
+    if record['identification'].get('identifier'):
+        # Add the DOI identifier
+        identifiers.append(
+            {
+                "identifier": record['identification']['identifier'].replace("https://doi.org/",""),
+                "relation": "isMetadataFor",
+                "ressource_type": "dataset",
+                "scheme": 'doi', #TODO Retrieve the right term in record 
+            }
+        )
+    for item in record['distribution']:
+         identifiers.append(
+              {
+                "identifier": item['url'],
+                "relation": "isNewVersionOf",
+                "ressource_type": "dataset",
+                "scheme": 'url',
+              }
+         )
+    
+    #TODO missing related works section which I'm not sure belongs here
+    return identifiers
 
 def zenodo(record, language=None):
     """Convert Hakai metadata to Zenodo format."""
@@ -56,7 +82,7 @@ def zenodo(record, language=None):
         # "doi": record["doi"],
         # "preserve_doi": record["preserve_doi"],
         "keywords": record["identification"]["keywords"]['default'][language],
-        "notes": record["metadata"].get('history'),
+        "notes": record["metadata"].get('maintenance_note','') + '\n\n' + f"Converted by hakai-metadata-conversion v{version}",
         "related_identifiers":  _get_related_identifiers(record),
         "contributors": _get_contributors(record),
         # "references": record["references"],
