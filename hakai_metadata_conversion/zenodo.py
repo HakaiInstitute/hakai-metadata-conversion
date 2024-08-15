@@ -1,10 +1,12 @@
 from loguru import logger
+import os
 
 from hakai_metadata_conversion.__version__ import version
 
 #FIXME zenodo do not recognize organizations vs person
 # The api docs is limited regarding that 
 # The ror field is not recognized by the api
+RAISE_ERRORS = os.getenv("RAISE_ERRORS", False)
 
 hakai_roles_to_zenodo_roles = {
     "pointOfContact": "ContactPerson",  
@@ -32,6 +34,8 @@ def _get_contributor_role(contributor):
         if role in hakai_roles_to_zenodo_roles:
             roles.append(hakai_roles_to_zenodo_roles[role])
             continue
+        if RAISE_ERRORS:
+            raise ValueError(f"Role {role} not found in hakai_roles_to_zenodo_roles")
         logger.warning(f"Role {role} not found in hakai_roles_to_zenodo_roles")
         roles.append("Other")
     return set(roles)
@@ -85,6 +89,33 @@ def _get_contributors(record):
     ]
 
 
+hakai_relations_to_zenodo_relations = {
+    "largerWorkCitation": "isPartOf",
+    "isComposedOf": "hasPart",
+    'crossReference': 'isReferencedBy',
+}
+
+hakai_authorities_to_zenodo_schemes = {
+    "URL": "url",
+    "DOI": "doi",
+}
+def _get_zenodo_relation(relation):
+    if relation in hakai_relations_to_zenodo_relations:
+        return hakai_relations_to_zenodo_relations[relation]
+    if RAISE_ERRORS:
+        raise ValueError(f"Relation {relation} not found in hakai_relations_to_zenodo_relations")
+    logger.warning(f"Relation {relation} not found in hakai_relations_to_zenodo_relations")
+    return 'Other'
+
+def _get_zenodo_scheme(authority):
+    if authority in hakai_authorities_to_zenodo_schemes:
+        return hakai_authorities_to_zenodo_schemes[authority]
+    if RAISE_ERRORS:
+        raise ValueError(f"Relation {relation} not found in hakai_relations_to_zenodo_relations")
+    logger.warning(f"Authority {authority} not found in hakai_authorities_to_zenodo_schemes")
+    return 'Other'
+
+
 def _get_related_identifiers(record):
     """Convert Hakai metadata related identifiers to Zenodo format."""
     logger.debug("Sort related identifiers")
@@ -117,8 +148,16 @@ def _get_related_identifiers(record):
                 "scheme": "url",
             }
         )
+    for resource in record['identification']['associated_resources']:
+        identifiers.append(
+            {
+                "identifier": resource['code'].replace("https://doi.org/", ""),
+                "relation": _get_zenodo_relation(resource['association_type_iso']),
+                "resource_type": "other",
+                "scheme": _get_zenodo_scheme(resource['authority']),
+            }
+        )
 
-    # TODO missing related works section which I'm not sure belongs here
     return identifiers
 
 def _get_notes(record):
@@ -181,6 +220,7 @@ def zenodo(record, language=None):
         # access_conditions": record["access_conditions"],
         # "doi": ignore this to generate a new DOI,
         # "preserve_doi": record["preserve_doi"],
+        "related_identifiers": _get_related_identifiers(record),
         "keywords": record["identification"]["keywords"]["default"][language],
         "notes": _get_notes(record),
         # "references": record["references"],
