@@ -255,9 +255,11 @@ def _update_xml(xml_file, dataset_id, updates, encoding="utf-8") -> str:
 
 
 def _get_dataset_id_from_record(record, erddap_url):
-    for ressource in record["distribution"]:
-        if erddap_url in ressource["url"]:
-            return ressource["url"].split("/")[-1].replace(
+    for resource in record["distribution"]:
+        if (erddap_url + '/tabledap' in resource["url"] \
+            or erddap_url + '/griddap' in resource["url"]) \
+            and '?' not in resource["url"]:
+            return resource["url"].split("/")[-1].replace(
                 ".html", ""
             ), global_attributes(record, output=None)
     return None, None
@@ -285,6 +287,7 @@ class ERDDAP:
 
     def update(self, dataset_id: str, global_attributes: dict):
 
+        changes = 0
         # Retrive dataset
         matching_dataset = self.tree.xpath(f"//dataset[@datasetID='{dataset_id}']")
         if not matching_dataset:
@@ -299,6 +302,9 @@ class ERDDAP:
             # Check if the attribute already exists
             matching_attribute = dataset.xpath(f".//addAttributes/att[@name='{name}']")
             if matching_attribute:
+                if (matching_attribute[0].text == value):
+                    logger.debug(f"No Change to attribute {name} with value {value}, Skipping...")
+                    continue
                 logger.debug(f"Updating attribute {name} with value {value}")
                 matching_attribute[0].text = value
             else:
@@ -308,8 +314,8 @@ class ERDDAP:
                 new_attribute.text = value
                 new_attribute.attrib["name"] = name
                 dataset.find(".//addAttributes").append(new_attribute)
-
-        return
+            changes += 1
+        return changes
 
 
 def update_dataset_xml(
@@ -338,21 +344,26 @@ def update_dataset_xml(
     updated = []
     for file in erddap_files:
         erddap = ERDDAP(file)
+        total_changes = 0
         for dataset_id, attrs in datasets:
             if not dataset_id:
                 continue
             if erddap.has_dataset_id(dataset_id):
                 # Update the XML
-                erddap.update(dataset_id, attrs)
+                changes = erddap.update(dataset_id, attrs)
+                if changes > 0:
+                    total_changes += changes
                 updated += [dataset_id]
         file_output = Path(output_dir) / Path(file).name if output_dir else file
-        logger.debug("Writing updated XML to {}", file_output)
-        erddap.save(file_output or file)
+        if total_changes > 0:
+            logger.info("Writing updated XML to {}", file_output)
+            erddap.save(file_output or file)
+        else:
+            logger.debug("No Change to file {}", file_output)
 
-    if missing_datasets := [
-        dataset_id for dataset_id in dataset_ids if dataset_id not in updated
-    ]:
-        logger.warning(f"Dataset ID {missing_datasets} not found in {datasets_xml}.")
+    for dataset_id in dataset_ids:
+        if dataset_id not in updated and dataset_id is not None:
+            logger.warning(f"Dataset ID [{dataset_id}] not found in {datasets_xml}.")
     return updated
 
 
