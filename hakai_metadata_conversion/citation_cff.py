@@ -185,7 +185,7 @@ def citation_cff(
             },
             *_get_ressources(record, language=language),
         ],
-        "keywords": list(
+        "keywords": sorted(
             set(
                 [
                     keyword

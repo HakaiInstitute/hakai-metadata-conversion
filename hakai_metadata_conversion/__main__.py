@@ -1,3 +1,18 @@
+
+# Convert one metadata format into another. 
+
+# Example Usage:
+
+# cd hakai-metadata-entry-form-files/hakai
+# find *.yaml -maxdepth 1 -type f -exec \
+#     hakai_metadata_conversion convert \
+#     --input {} \
+#     --input-file-format yaml \
+#     --encoding utf-8 \
+#     --output-format erddap \
+#     --output-encoding utf-8 \;
+
+
 import json
 from glob import glob
 from pathlib import Path
@@ -166,7 +181,7 @@ def convert(
 
         # Write to file or return output
         if output_file:
-            logger.info("Writing to file {}", output_dir)
+            logger.info("Writing to file {}", output_file)
             output_file.write_text(converted_record, encoding=output_encoding)
         else:
             returned_output += "\n" + converted_record
