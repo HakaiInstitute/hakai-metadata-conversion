@@ -99,7 +99,7 @@ def _get_doi(record):
 def _get_ressources(record, language):
     ressources = []
     for distribution in record["distribution"]:
-        if not distribution["url"].startswith("http"):
+        if not distribution.get("url","").startswith("http"):
             logger.warning(f"Invalid URL: {distribution['url']}")
             continue
         ressources.append(
