@@ -256,9 +256,10 @@ def _update_xml(xml_file, dataset_id, updates, encoding="utf-8") -> str:
 
 def _get_dataset_id_from_record(record, erddap_url):
     for resource in record["distribution"]:
-        if (erddap_url + '/tabledap' in resource["url"] \
-            or erddap_url + '/griddap' in resource["url"]) \
-            and '?' not in resource["url"]:
+        resource_url = resource.get("url","")
+        if (erddap_url + '/tabledap' in resource_url \
+            or erddap_url + '/griddap' in resource_url) \
+            and '?' not in resource_url:
             return resource["url"].split("/")[-1].replace(
                 ".html", ""
             ), global_attributes(record, output=None)
