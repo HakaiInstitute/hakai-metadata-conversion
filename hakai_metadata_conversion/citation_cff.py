@@ -60,14 +60,14 @@ def get_cff_person(author):
 def get_cff_entity(entity):
     return drop_empty_values(
         {
-            "name": entity["organization"]["name"],
-            "address": entity["organization"].get("address"),
-            "city": entity["organization"].get("city"),
-            "country": _get_country_code(entity["organization"].get("country")),
-            "email": entity["organization"].get("email"),
-            "website": _fix_url(entity["organization"].get("url")),
-            "orcid": entity["organization"].get("orcid"),
-            # "ror": entity["organization"].get("ror"), # not in CFF schema
+            "name": entity.get("organization",{})["name"],
+            "address": entity.get("organization",{}).get("address"),
+            "city": entity.get("organization",{}).get("city"),
+            "country": _get_country_code(entity.get("organization",{}).get("country")),
+            "email": entity.get("organization",{}).get("email"),
+            "website": _fix_url(entity.get("organization",{}).get("url")),
+            "orcid": entity.get("organization",{}).get("orcid"),
+            # "ror": entity.get("organization",{}).get("ror"), # not in CFF schema
         }
     )
 
