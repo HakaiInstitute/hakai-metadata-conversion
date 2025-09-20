@@ -14,7 +14,7 @@ def test_xml(record):
 
 @pytest.mark.parametrize(
     "file",
-    glob("tests/records/hakai-metadata-entry-form-files/**/*.yaml", recursive=True),
+    glob("tests/records/**/*.yaml", recursive=True),
 )
 def test_hakai_records_xml(file):
     record = load(file, "yaml")

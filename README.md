@@ -35,8 +35,12 @@ To use this tool, follow these steps:
     ```bash
     pip install -e .
     ```
+3. **Set environemnts**
+4. 
+    Define environment by copying `sample.env` to `.env`
+    Replaced values  in .env accordingly.
 
-3. **Run the Tool:**
+5. **Run the Tool:**
 
     ```bash
     python hakai_metadata_conversion 

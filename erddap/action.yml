@@ -1,0 +1,81 @@
+---
+name: Synchronize CKAN record to dataset repository contribution.cff
+description: 'This action synchronizes a CKAN record to a dataset repository contribution.cff file.'
+inputs:
+  dataset-xml:
+    description: 'glob path to the dataset-xml file(s)'
+    required: true
+  records:
+    description: 'YAML records to update the dataset-xml file(s)'
+    required: true
+  erddap-url:
+    description: 'ERDDAP URL use to detected associated datasets metadata records'
+    required: true
+  commit:
+    description: 'Commit the updates to the repository'
+    required: false
+    default: 'true'
+  branch:
+    description: 'The pull request branch name.'
+    required: false
+    default: 'fix-contribution-cff'
+  base:
+    description: 'Sets the pull request base branch.'
+    required: false
+    default: 'main'
+  token:
+    description: 'GitHub token'
+    required: true
+    default: ${{ github.token }}
+  labels:
+    description: 'Labels to add to the pull request'
+    required: false
+    default: 'automated'
+  commit-message:
+    description: 'Commit message'
+    required: false
+    default: 'Update ERDDAP datasets metadata'
+  title:
+    description: 'Title of the pull request'
+    required: false
+    default: 'Update contribution.cff'
+  body:
+    description: 'Body of the pull request'
+    required: false
+    default: |
+      ## Update ERDDAP datasets metadata
+      This pull request updates the metadata of the different datasets in the
+      repository.
+
+runs:
+  using: "composite"
+  steps:
+
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v5
+      with:
+        python-version: 3.11
+
+    - name: Install dependencies
+      shell: bash
+      run: pip install git+https://github.com/HakaiInstitute/hakai-metadata-conversion.git
+
+    - name: Run conversion
+      shell: bash
+      run: |
+        hakai_metadata_conversion erddap \
+        --input ${{ inputs.input }} \
+        --records ${{ inputs.records }} \
+        --erddap-url ${{ inputs.erddap-url }} \
+
+    - name: Commit outputs
+      uses: peter-evans/create-pull-request@v6
+      with:
+        commit-message: ${{ inputs.commit-message }}
+        title: ${{ inputs.title }}
+        body: ${{ inputs.body }}
+        branch: ${{ inputs.branch }}
+        base: ${{ inputs.base }}
+        branch-suffix: ${{ inputs.branch-suffix }}
+        token: ${{ inputs.token }}
+        labels: ${{ inputs.labels }}
