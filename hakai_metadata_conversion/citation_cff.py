@@ -162,7 +162,7 @@ def citation_cff(
         "contact": [
             get_cff_contact(contact)
             for contact in record["contact"]
-            if "pointOfContact" in contact["roles"]
+            if "pointOfContact" in contact.get("roles")
         ],
         "identifiers": [
             {
