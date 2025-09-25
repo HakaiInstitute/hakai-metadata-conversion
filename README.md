@@ -96,6 +96,12 @@ To test it all
 uv run pytest
 ```
 
+## Liniting
+```
+uv run flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics --exclude .venv
+uv run flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics --exclude .venv
+```
+
 ## How to Contribute
 
 We welcome contributions! If you would like to add support for more metadata standards or improve the tool, please follow these steps:
