@@ -1,36 +1,43 @@
-[tool.poetry]
+[project]
+authors = [
+    {name = "Jessy Barrette", email = "30420025+JessyBarrette@users.noreply.github.com"},
+]
+requires-python = "<4.0,>=3.11"
+dependencies = [
+    "click<9.0.0,>=8.1.7",
+    "loguru>=0.7.2,<1.0.0",
+    "requests<3.0.0,>=2.32.3",
+    "cffconvert<3.0.0,>=2.0.0",
+    "pycountry<25.0.0,>=24.6.1",
+    "metadata-xml @ git+https://github.com/hakaiinstitute/metadata-xml.git",
+    "pyyaml<7.0.0,>=6.0.1",
+    "lxml<6.0.0,>=5.2.2",
+]
 name = "hakai-metadata-conversion"
 version = "0.1.0"
 description = ""
-authors = ["Jessy Barrette <30420025+JessyBarrette@users.noreply.github.com>"]
 readme = "README.md"
 
-[tool.poetry.dependencies]
-python = "^3.11"
-click = "^8.1.7"
-loguru = "^0.7.2"
-requests = "^2.32.3"
-cffconvert = "^2.0.0"
-pycountry = "^24.6.1"
-metadata-xml = {git = "https://github.com/hakaiinstitute/metadata-xml.git"}
-pyyaml = "^6.0.1"
-lxml = "^5.2.2"
-
-
-[tool.poetry.group.dev.dependencies]
-pytest = "^8.2.2"
-isort = "^5.13.2"
-ruff = "^0.5.0"
-black = "^24.4.2"
-pytest-xdist = "^3.6.1"
-
-
-[tool.poetry.group.docs.dependencies]
-black = "^24.4.2"
-
-[build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
-
-[tool.poetry.scripts]
+[project.scripts]
 hakai_metadata_conversion = "hakai_metadata_conversion.__main__:cli"
+
+[dependency-groups]
+dev = [
+    "pytest<9.0.0,>=8.2.2",
+    "isort<6.0.0,>=5.13.2",
+    "ruff<1.0.0,>=0.5.0",
+    "black<25.0.0,>=24.4.2",
+    "pytest-xdist<4.0.0,>=3.6.1",
+]
+docs = [
+    "black<25.0.0,>=24.4.2",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["hakai_metadata_conversion"]
+
+[tool.pytest.ini_options]
+markers = [
+    "core: core tests that test the application",
+    "metadataFiles: test that convert metadata files from the file repo",
+]

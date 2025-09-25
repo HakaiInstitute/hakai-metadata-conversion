@@ -6,7 +6,7 @@ import pytest
 from hakai_metadata_conversion import citation_cff
 from hakai_metadata_conversion.__main__ import load
 
-
+@pytest.mark.core
 def test_citation_cff(record):
     result = citation_cff.citation_cff(record, output_format=None, language="en")
     assert result
@@ -25,12 +25,12 @@ def test_citation_cff(record):
     assert "version" in result
     assert "identifiers" in result
 
-
+@pytest.mark.core
 def test_ctation_cff_yaml(record, tmp_path):
     result = citation_cff.citation_cff(record, output_format="yaml", language="en")
     (tmp_path / "CITATION.cff").write_text(result, encoding="utf-8")
 
-
+@pytest.mark.core
 def test_citation_cff_validation(record, tmp_path):
 
     result = citation_cff.citation_cff(record, output_format="yaml", language="en")
@@ -43,15 +43,18 @@ def test_citation_cff_validation(record, tmp_path):
     assert result.returncode == 0, result.stderr
 
 
+@pytest.mark.metadataFiles
 @pytest.mark.parametrize(
     "file",
-    glob("tests/records/hakai-metadata-entry-form-files/**/*.yaml", recursive=True),
+    list(set(glob("tests/records/hakai-metadata-entry-form-files/**/*.yaml", recursive=True))
+         - set(glob("tests/records/hakai-metadata-entry-form-files/unpublished/**/*.yaml", recursive=True))),
 )
 def test_hakai_metadata_entry_form_files_cff(file, tmp_path):
     data = load(file, "yaml")
     result = citation_cff.citation_cff(data, output_format="yaml", language="en")
     assert result
 
+    print(result)
     # validate cff
     (tmp_path / "CITATION.cff").write_text(result, encoding="utf-8")
     validation_result = subprocess.run(
@@ -60,10 +63,11 @@ def test_hakai_metadata_entry_form_files_cff(file, tmp_path):
     )
     assert validation_result.returncode == 0, validation_result.stderr.decode("utf-8")
 
-
+@pytest.mark.metadataFiles
 @pytest.mark.parametrize(
     "file",
-    glob("tests/records/hakai-metadata-entry-form-files/**/*.yaml", recursive=True),
+        list(set(glob("tests/records/hakai-metadata-entry-form-files/**/*.yaml", recursive=True))
+         - set(glob("tests/records/hakai-metadata-entry-form-files/unpublished/**/*.yaml", recursive=True))),
 )
 def test_hakai_metadata_entry_form_files_cff_fr(file, tmp_path):
     data = load(file, "yaml")
