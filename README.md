@@ -21,7 +21,7 @@ metadata files.
 
 ## Getting Started
 
-To use this tool, follow these steps:
+To use this tool, follow these steps to install it as a modul:
 
 1. **Clone the Repository**:
 
@@ -33,20 +33,30 @@ To use this tool, follow these steps:
 2. **Install Dependencies:**
 
     ```bash
-    pip install -e .
+    uv sync
     ```
 
 3. **Run the Tool:**
 
     ```bash
-    python hakai_metadata_conversion 
+    uv run hakai_metadata_conversion 
     ```
 
     For more information
 
     ```bash
-    python hakai_metadata_conversion --help
+    uv run hakai_metadata_conversion --help
     ```
+
+## Install cli
+```
+uv tool install . -e
+```
+
+## Run Cli
+```
+hakai_metadata_conversion --help
+```
 
 ## Use within an action
 
@@ -65,6 +75,26 @@ job:
                 - output-format: cff
 ```
 
+
+## Testing
+To test the core application
+```
+cd tests/records
+git clone https://github.com/HakaiInstitute/hakai-metadata-entry-form-files.git
+cd ../..
+uv sync --dev
+uv run pytest -m core
+```
+
+To test that converting all yaml files from the metadata files repo have been marked as 'metadataFiles'. These test take a long time so you might want the exitfirst flag which will stop after the first fail.
+```
+uv run pytest --exitfirst -m metadataFiles
+```
+
+To test it all
+```
+uv run pytest
+```
 
 ## How to Contribute
 

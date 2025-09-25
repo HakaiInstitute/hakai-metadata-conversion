@@ -83,15 +83,17 @@ def get_cff_contact(contact):
 def _get_doi(record):
     if not record["identification"].get("identifier", ""):
         return []
+    value = (record["identification"]["identifier"].replace("https://doi.org/", "")
+                if "doi.org" in record["identification"].get("identifier", "")
+                else None
+    )
+    if not value:
+        return []
     return [
         {
             "description": "DOI",
             "type": "doi",
-            "value": (
-                record["identification"]["identifier"].replace("https://doi.org/", "")
-                if "doi.org" in record["identification"].get("identifier", "")
-                else None
-            ),
+            "value": value,
         }
     ]
 
@@ -202,6 +204,8 @@ def citation_cff(
         "url": resource_url,
         "version": record["identification"].get("edition"),
     }
+    if record.get("license") == "CC0":
+        record["license"] = "CC0-1.0"
     record = drop_empty_values(record)
 
     if output_format == "yaml":

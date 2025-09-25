@@ -5,7 +5,7 @@ import pytest
 import hakai_metadata_conversion.erddap as erddap
 from hakai_metadata_conversion.__main__ import load
 
-
+@pytest.mark.core
 def test_erddap_global_attributes(record):
     result = erddap.global_attributes(record, output=None, language="en")
     assert result
@@ -35,15 +35,16 @@ def test_erddap_global_attributes(record):
     assert "publisher_url" in result
     assert "metadata_link" in result
 
-
+@pytest.mark.core
 def test_erddap_global_attributes_xml(record):
     result = erddap.global_attributes(record, output="xml", language="en")
     assert result
 
-
+@pytest.mark.metadataFiles
 @pytest.mark.parametrize(
     "file",
-    glob("tests/records/hakai-metadata-entry-form-files/**/*.yaml", recursive=True),
+    list(set(glob("tests/records/hakai-metadata-entry-form-files/**/*.yaml", recursive=True))
+         - set(glob("tests/records/hakai-metadata-entry-form-files/unpublished/**/*.yaml", recursive=True))),
 )
 def test_hakai_metadata_files_to_erddap(file):
     data = load(file, "yaml")
@@ -51,10 +52,11 @@ def test_hakai_metadata_files_to_erddap(file):
 
     assert result
 
-
+@pytest.mark.metadataFiles
 @pytest.mark.parametrize(
     "file",
-    glob("tests/records/hakai-metadata-entry-form-files/**/*.yaml", recursive=True),
+    list(set(glob("tests/records/hakai-metadata-entry-form-files/**/*.yaml", recursive=True))
+         - set(glob("tests/records/hakai-metadata-entry-form-files/unpublished/**/*.yaml", recursive=True))),
 )
 def test_hakai_metadata_files_to_erddap_fr(file):
     data = load(file, "yaml")
@@ -62,7 +64,7 @@ def test_hakai_metadata_files_to_erddap_fr(file):
 
     assert result_fr
 
-
+@pytest.mark.core
 def test_erddap_dataset_xml_update(record, tmp_path):
     erddap.update_dataset_xml(
         "tests/erddap_xmls/test_datasets.xml",
@@ -72,7 +74,7 @@ def test_erddap_dataset_xml_update(record, tmp_path):
     )
     assert (tmp_path / "test_datasets.xml").exists()
 
-
+@pytest.mark.core
 def test_erddap_dataset_xml_update_string(tmp_path):
     erddap.update_dataset_xml(
         "tests/erddap_xmls/test_datasets.xml",
@@ -82,7 +84,7 @@ def test_erddap_dataset_xml_update_string(tmp_path):
     )
     assert (tmp_path / "test_datasets.xml").exists()
 
-
+@pytest.mark.core
 def test_erddap_dataset_d_xml_update(record, tmp_path):
     erddap.update_dataset_xml(
         "tests/erddap_xmls/dataset.d/*.xml",
