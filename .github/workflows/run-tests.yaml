@@ -54,9 +54,9 @@ jobs:
           commit: false
 
       # re-deploy the metadata web app on caprover as it uses this repo
-      - uses: actions/setup-node@v3
+      - uses: actions/setup-node@v6
         with:
-          node-version: 16
+          node-version: 24
       - name: Install Caprover CLI
         run: npm install -g caprover
       
