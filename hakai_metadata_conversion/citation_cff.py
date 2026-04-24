@@ -101,8 +101,8 @@ def _get_doi(record):
 def _get_ressources(record, language):
     ressources = []
     for distribution in record["distribution"]:
-        if not distribution.get("url","").startswith("http"):
-            logger.warning(f"Invalid URL: {distribution.get('url')}")
+        if not distribution.get("url", "").startswith("http"):
+            logger.warning(f"Invalid ressource URL: {distribution.get('url')}")
             continue
         ressources.append(
             {
@@ -119,7 +119,7 @@ def _get_ressources(record, language):
                     ]
                 ),
                 "type": "url",
-                "value": distribution["url"],
+                "value": distribution.get("url", ""),
             }
         )
     return ressources
@@ -127,10 +127,11 @@ def _get_ressources(record, language):
 
 def _get_unique_authors(record):
     authors = []
-    for author in record["contact"]:
-        contact = get_cff_contact(author)
-        if contact not in authors:
-            authors.append(contact)
+    for contact in record["contact"]:
+        if contact["inCitation"] and ("author" in contact["roles"] or "coAuthor" in contact["roles"]):
+            author = get_cff_contact(contact)
+            if author not in authors:
+                authors.append(author)
     return authors
 
 
@@ -196,8 +197,12 @@ def citation_cff(
                 ]
             )
         ),
-        "license": record["metadata"]["use_constraints"].get("licence", {}).get("code"),
-        "license-url": record["metadata"]["use_constraints"]
+        "license": record["metadata"]
+        .get("use_constraints", {})
+        .get("licence", {})
+        .get("code"),
+        "license-url": record["metadata"]
+        .get("use_constraints", {})
         .get("licence", {})
         .get("url"),
         "type": record_type,

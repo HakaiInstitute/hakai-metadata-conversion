@@ -27,6 +27,7 @@ contact:
     ror: https://ror.org/02pry0c91
     url: https://www.hakai.org/
   roles:
+  - author
   - custodian
   - pointOfContact
   - processor
@@ -40,6 +41,37 @@ contact:
     ror: https://ror.org/02pry0c91
     url: https://www.hakai.org/
   roles:
+  - coAuther
+  - processor
+- inCitation: true
+  individual:
+    email: something@google.com
+    name: smily, guy
+    orcid: https://orcid.org/0000-0000-0000-0000
+    position: Test position
+  organization:
+    address: 1713 Hyacinthe Bay Road
+    city: Campbell River
+    country: Canada
+    email: data@hakai.org
+    name: Hakai Institute
+    ror: https://ror.org/02pry0c91
+    url: https://www.hakai.org/
+  roles:
+  - author
+  - pointOfContact
+  - processor
+- inCitation: true
+  individual:
+    name: guy, some
+  organization:
+    city: Campbell River
+    country: Canada
+    name: Hakai Institute
+    ror: https://ror.org/02pry0c91
+    url: https://www.hakai.org/
+  roles:
+  - coAuther
   - processor
 - inCitation: true
   organization:
