@@ -205,7 +205,7 @@ def citation_cff(
         .get("use_constraints", {})
         .get("licence", {})
         .get("url"),
-        "type": record_type,
+        "type": record_type.lower(),
         "url": resource_url,
         "version": record["identification"].get("edition"),
     }

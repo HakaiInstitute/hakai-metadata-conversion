@@ -54,11 +54,4 @@ jobs:
           commit: false
 
       # re-deploy the metadata web app on caprover as it uses this repo
-      - uses: actions/setup-node@v6
-        with:
-          node-version: 24
-      - name: Install Caprover CLI
-        run: npm install -g caprover
-      
-      - name: Tell Caprover server to deploy main (https://metadata-generator-web.server.hakai.app)
-        run: caprover deploy --caproverUrl https://captain.server.hakai.app --appToken ${{ secrets.CAPROVER_TOKEN_MAIN }} --branch 'main' --appName metadata-generator-web
+      # go to hakai-metadata-entry-form repo and run Build and Deploy Metadata Generator Docker Image action
