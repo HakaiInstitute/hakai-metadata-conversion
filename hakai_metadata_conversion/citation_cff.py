@@ -128,7 +128,7 @@ def _get_ressources(record, language):
 def _get_unique_authors(record):
     authors = []
     for contact in record["contact"]:
-        if contact["inCitation"] and ("author" in contact["roles"] or "coAuthor" in contact["roles"]):
+        if contact["inCitation"]:
             author = get_cff_contact(contact)
             if author not in authors:
                 authors.append(author)
@@ -211,6 +211,8 @@ def citation_cff(
     }
     if record.get("license") == "CC0":
         record["license"] = "CC0-1.0"
+    if record.get("license") == "None":
+        record["license"] = ""
     record = drop_empty_values(record)
 
     if output_format == "yaml":

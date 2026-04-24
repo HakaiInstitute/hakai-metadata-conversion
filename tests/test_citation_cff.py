@@ -10,7 +10,6 @@ from hakai_metadata_conversion.citation_cff import _get_unique_authors
 @pytest.mark.core
 def test_citation_cff(record):
     result = citation_cff.citation_cff(record, output_format=None, language="en")
-    print(result)
     assert result
     assert isinstance(result, dict)
     assert "cff-version" in result
@@ -117,11 +116,6 @@ def test_empty_contacts():
 @pytest.mark.core
 def test_excludes_not_in_citation():
     record = _make_record([_person_contact(["author"], in_citation=False)])
-    assert _get_unique_authors(record) == []
-
-@pytest.mark.core
-def test_excludes_non_author_roles():
-    record = _make_record([_person_contact(["distributor", "pointOfContact"])])
     assert _get_unique_authors(record) == []
 
 @pytest.mark.core
