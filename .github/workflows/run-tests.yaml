@@ -16,21 +16,21 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with: 
           path: "."
       - name: Checkout hakai metadata filesxz
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: HakaiInstitute/hakai-metadata-entry-form-files
           path: ./tests/records/hakai-metadata-entry-form-files
 
       - name: Set up Python 3.12
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: 3.12
       - name: Install uv
-        uses: astral-sh/setup-uv@v3
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
         with:
           version: "latest"
       - name: Install dependencies
