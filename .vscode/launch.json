@@ -1,0 +1,38 @@
+{
+  // Use IntelliSense to learn about possible attributes.
+  // Hover to view descriptions of existing attributes.
+  // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Debug FastAPI (Reload)",
+      "type": "python",
+      "request": "launch",
+      "module": "uvicorn",
+      "args": [
+        "hakai_metadata_conversion.api:app",
+        "--reload"
+      ],
+      "jinja": true,
+      "justMyCode": true
+    },
+    {
+      "name": "Convert DOI to JSON",
+      "type": "python",
+      "request": "launch",
+      "module": "hakai_metadata_conversion",
+      "args": [
+        "convert",
+        "-i",
+        "https://doi.org/10.34943/bccd7013-e563-416a-827d-b81155fdcdfe",
+        "--output-format",
+        "json",
+        "-o",
+        "test.json"
+      ],
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "justMyCode": true
+    }
+  ]
+}

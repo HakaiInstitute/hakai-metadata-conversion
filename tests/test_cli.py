@@ -13,14 +13,14 @@ def runner():
 @pytest.mark.skip(reason="cli without args dosn't work from tests. not sure why")
 def test_cli_no_args(runner):
     result = runner.invoke(cli)
-    assert result.exit_code == 0
-    assert "Usage: hakai-metadata-conversion [OPTIONS] COMMAND [ARGS]" in result.output
+    assert result.exit_code == 2, result.output
+    assert "Usage: cioos-metadata-conversion [OPTIONS] COMMAND [ARGS]" in result.output
 
 @pytest.mark.core
 def test_cli_help(runner):
     result = runner.invoke(cli, ["--help"])
     assert result.exit_code == 0
-    assert "Usage: hakai-metadata-conversion [OPTIONS]" in result.output
+    assert "Usage: cioos-metadata-conversion [OPTIONS]" in result.output
 
 @pytest.mark.core
 def test_cli_on_test_files(runner, tmpdir):
@@ -30,8 +30,8 @@ def test_cli_on_test_files(runner, tmpdir):
         "convert",
         "--input",
         input_files,
-        "--input-file-format",
-        "yaml",
+        "--input-schema",
+        "CIOOS",
         "--output-format",
         "cff",
         "--output-dir",
@@ -48,8 +48,8 @@ def test_cli_output_file(runner, tmpdir):
         "convert",
         "--input",
         "tests/records/*.yaml",
-        "--input-file-format",
-        "yaml",
+        "--input-schema",
+        "CIOOS",
         "--output-format",
         "cff",
         "--output-file",
@@ -70,9 +70,9 @@ def test_cli_with_http_input(runner, tmpdir):
     args = [
         "convert",
         "--input",
-        "https://raw.githubusercontent.com/HakaiInstitute/hakai-metadata-conversion/main/tests/records/test_record1.yaml",
-        "--input-file-format",
-        "yaml",
+        "https://raw.githubusercontent.com/cioos-siooc/cioos-metadata-conversion/main/tests/records/test_record1.yaml",
+        "--input-schema",
+        "CIOOS",
         "--output-format",
         "cff",
         "--output-file",
