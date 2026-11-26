@@ -168,3 +168,34 @@ def test_preserves_order():
     result = _get_unique_authors(_make_record(contacts))
     assert result[0]["family-names"] == "Smith"
     assert result[1]["name"] == "Second Org"
+
+@pytest.mark.core
+@pytest.mark.parametrize(
+    "organization", [{}, {"name": ""}, {"city": "Victoria"}], ids=["empty", "blank-name", "no-name-key"]
+)
+def test_organization_without_name_is_dropped(organization):
+    """A contact whose organization carries no name used to raise KeyError and take
+    the whole record's regeneration down with it."""
+    contact = {"inCitation": True, "roles": ["author"], "organization": organization}
+    assert _get_unique_authors(_make_record([contact])) == []
+
+@pytest.mark.core
+def test_nameless_organization_does_not_hide_other_authors():
+    contacts = [
+        {"inCitation": True, "roles": ["author"], "organization": {"city": "Victoria"}},
+        _org_contact(["author"], org_name="Named Org"),
+    ]
+    result = _get_unique_authors(_make_record(contacts))
+    assert [author["name"] for author in result] == ["Named Org"]
+
+@pytest.mark.core
+def test_nameless_organization_left_out_of_contacts(record):
+    record["contact"].append(
+        {
+            "inCitation": False,
+            "roles": ["pointOfContact"],
+            "organization": {"city": "Victoria"},
+        }
+    )
+    result = citation_cff.citation_cff(record, output_format=None, language="en")
+    assert {} not in result["contact"]
