@@ -25,6 +25,7 @@ KEYWORDS_PREFIX_MAPPING = {
 
 def _get_contact(contact: dict, role: str) -> dict:
     """Generate a CFF contact from a metadata contact."""
+    organization = contact.get("organization") or {}
     if "individual" in contact:
         attrs = {
             f"{role}_name": contact["individual"].get("name"),
@@ -33,43 +34,49 @@ def _get_contact(contact: dict, role: str) -> dict:
             f"{role}_type": "person",
         }
     else:
+        # name was indexed rather than looked up here, so an organization with no
+        # name - or a contact with no organization at all, which the guard below
+        # only caught after the fact - raised KeyError.
         attrs = {
-            f"{role}_name": contact["organization"]["name"],
-            f"{role}_email": contact["organization"].get("email"),
+            f"{role}_name": organization.get("name"),
+            f"{role}_email": organization.get("email"),
             f"{role}_type": "institution",
         }
 
-    if not contact.get("organization"):
+    if not organization:
         logger.warning(f"No organization found for {role} contact.")
         return attrs
 
     return {
         **attrs,
-        f"{role}_institution": contact["organization"].get("name"),
-        f"{role}_address": contact["organization"].get("address"),
-        f"{role}_city": contact["organization"].get("city"),
-        f"{role}_country": contact["organization"].get("country"),
-        f"{role}_url": contact["organization"].get("url"),
-        f"{role}_ror": contact["organization"].get("ror"),
+        f"{role}_institution": organization.get("name"),
+        f"{role}_address": organization.get("address"),
+        f"{role}_city": organization.get("city"),
+        f"{role}_country": organization.get("country"),
+        f"{role}_url": organization.get("url"),
+        f"{role}_ror": organization.get("ror"),
     }
 
 
 def _get_contributors(contacts: list, separator=";") -> dict:
     """Generate a list of CFF contributors from a list of metadata contacts."""
+    # contributor_name and contributor_role are positional: the nth role belongs to
+    # the nth name, so a contact that yields no name has to drop out of both rather
+    # than just one. Nameless organizations used to raise KeyError here instead.
+    contributors = []
+    for contact in contacts:
+        if "individual" in contact and contact["individual"].get("name"):
+            name = contact["individual"]["name"]
+        else:
+            name = (contact.get("organization") or {}).get("name")
+        if not name:
+            logger.warning("Dropping contributor with no individual or organization name")
+            continue
+        contributors.append((name, ",".join(contact.get("roles", []))))
+
     return {
-        "contributor_name": separator.join(
-            [
-                (
-                    contact["individual"]["name"]
-                    if ("individual" in contact and contact["individual"].get("name"))
-                    else contact["organization"]["name"]
-                )
-                for contact in contacts
-            ]
-        ),
-        "contributor_role": separator.join(
-            [",".join(contact["roles"]) for contact in contacts]
-        ),
+        "contributor_name": separator.join(name for name, _ in contributors),
+        "contributor_role": separator.join(roles for _, roles in contributors),
     }
 
 

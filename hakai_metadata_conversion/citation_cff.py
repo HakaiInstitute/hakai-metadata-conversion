@@ -58,16 +58,24 @@ def get_cff_person(author):
 
 
 def get_cff_entity(entity):
+    organization = entity.get("organization", {})
+    if not organization.get("name"):
+        # name was indexed rather than looked up here, so a contact carrying an
+        # organization with no name raised KeyError and took the whole record's
+        # regeneration down with it. CFF has no use for a nameless entity, so
+        # return nothing and let the caller leave it out.
+        logger.warning("Dropping contact whose organization has no name")
+        return {}
     return drop_empty_values(
         {
-            "name": entity.get("organization",{})["name"],
-            "address": entity.get("organization",{}).get("address"),
-            "city": entity.get("organization",{}).get("city"),
-            "country": _get_country_code(entity.get("organization",{}).get("country")),
-            "email": entity.get("organization",{}).get("email"),
-            "website": _fix_url(entity.get("organization",{}).get("url")),
-            "orcid": entity.get("organization",{}).get("orcid"),
-            # "ror": entity.get("organization",{}).get("ror"), # not in CFF schema
+            "name": organization["name"],
+            "address": organization.get("address"),
+            "city": organization.get("city"),
+            "country": _get_country_code(organization.get("country")),
+            "email": organization.get("email"),
+            "website": _fix_url(organization.get("url")),
+            "orcid": organization.get("orcid"),
+            # "ror": organization.get("ror"), # not in CFF schema
         }
     )
 
@@ -130,7 +138,7 @@ def _get_unique_authors(record):
     for contact in record["contact"]:
         if contact["inCitation"]:
             author = get_cff_contact(contact)
-            if author not in authors:
+            if author and author not in authors:
                 authors.append(author)
     return authors
 
@@ -163,9 +171,10 @@ def citation_cff(
         "abstract": record["identification"]["abstract"].get(language),
         "date-released": record["metadata"]["dates"]["revision"].split("T")[0],
         "contact": [
-            get_cff_contact(contact)
+            cff_contact
             for contact in record["contact"]
             if "pointOfContact" in contact.get("roles")
+            and (cff_contact := get_cff_contact(contact))
         ],
         "identifiers": [
             {
