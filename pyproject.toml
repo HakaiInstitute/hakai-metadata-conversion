@@ -21,6 +21,15 @@ dependencies = [
     "google-oauth>=1.0.1",
     "duckdb>=1.0.0",
     "deepdiff>=8.6.1",
+    # Security floors for transitive dependencies. These are not imported
+    # directly; they are named here because uv.lock on its own did not survive a
+    # merge - reseeding the lock from the upstream branch took certifi back from
+    # 2026.10.23 to 2025.8.3, silently undoing the eMudhra emSign CA fix in
+    # 6ee9be5. A floor here cannot be reverted by a resolver.
+    "certifi>=2026.10.23",
+    "urllib3>=2.8.0",
+    "pyasn1>=0.6.4",
+    "pyopenssl>=26.0.0",
 ]
 
 [project.scripts]
