@@ -1,10 +1,11 @@
 import os
-from pathlib import Path
 
 import pytest
 from dotenv import load_dotenv
 
 from hakai_metadata_conversion.record import OUTPUT_FORMATS, Record
+
+from tests.conftest import firebase_record_files
 
 load_dotenv()
 LOCAL_RECORDS_PATH = os.getenv("LOCAL_RECORDS_PATH", "tests/records")
@@ -60,7 +61,7 @@ def test_chain_methods(record_file_yaml, output_format):
 @pytest.mark.parametrize("output_format", OUTPUT_FORMATS.keys())
 @pytest.mark.parametrize(
     "record",
-    Path(LOCAL_RECORDS_PATH).glob("**/*.json"),
+    firebase_record_files(LOCAL_RECORDS_PATH, "**/*.json"),
 )
 def test_real_world_records(record, output_format):
     """

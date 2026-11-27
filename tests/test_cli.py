@@ -134,7 +134,7 @@ def test_cli_with_http_input(runner, tmpdir):
     args = [
         "convert",
         "--input",
-        "https://raw.githubusercontent.com/cioos-siooc/cioos-metadata-conversion/main/tests/records/test_record1.yaml",
+        "https://raw.githubusercontent.com/hakaiinstitute/hakai-metadata-conversion/main/tests/records/test_record1.yaml",
         "--input-schema",
         "CIOOS",
         "--output-format",

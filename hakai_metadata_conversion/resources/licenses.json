@@ -99,6 +99,14 @@
         "url": "https://choosealicense.com/no-permission/",
         "code": "None"
     },
+    "None": {
+        "title": {
+            "en": "No License",
+            "fr": "Aucune licence"
+        },
+        "url": "https://choosealicense.com/no-permission/",
+        "code": "None"
+    },
     "ca-eccc-odl": {
         "title": {
             "en": "Environment and Climate Change Canada Data Servers End-use Licence",
