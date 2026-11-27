@@ -1,6 +1,7 @@
 from glob import glob
 from pathlib import Path
 from typing import Union
+from xml.sax.saxutils import escape
 
 import click
 import yaml
@@ -15,17 +16,42 @@ from hakai_metadata_conversion.cioos import (
 )
 
 
+def _xml_text(value) -> str:
+    """Escape a value for use as XML element text.
+
+    This is built by string concatenation rather than through lxml so the
+    output keeps its existing shape - four-space indent, single-quoted
+    attributes - but that means nothing escapes the markup characters for us.
+    Without this, an abstract reading "RGB & NIR" or "< 0.5% to > 5 %" emitted a
+    bare ampersand or angle bracket and the file stopped being well-formed XML,
+    which ERDDAP rejects when it loads datasets.xml.
+    """
+    return escape(str(value))
+
+
+def _xml_attr(value) -> str:
+    """Escape a value for use inside a single-quoted XML attribute.
+
+    Attribute names here are ACDD keys and language codes, so in practice they
+    contain nothing that needs escaping. Done anyway: the cost is a function
+    call, and the alternative is this being quietly wrong the day a key is
+    derived from record content.
+    """
+    return escape(str(value), {"'": "&apos;", '"': "&quot;"})
+
+
 def _generate_dataset_xml(
     global_attributes: dict, multilingual_fields: dict = None
 ) -> str:
     output = ["<addAttributes>"]
     for key, value in global_attributes.items():
-        output += [f"    <att name='{key}'>{value}</att>"]
+        output += [f"    <att name='{_xml_attr(key)}'>{_xml_text(value)}</att>"]
         if multilingual_fields and key in multilingual_fields:
             for lang, lang_value in multilingual_fields[key].items():
                 if lang_value:
                     output += [
-                        f"    <att name='{key}' xml:lang='{lang}'>{lang_value}</att>"
+                        f"    <att name='{_xml_attr(key)}' "
+                        f"xml:lang='{_xml_attr(lang)}'>{_xml_text(lang_value)}</att>"
                     ]
     output += ["</addAttributes>"]
     return "\n".join(output)

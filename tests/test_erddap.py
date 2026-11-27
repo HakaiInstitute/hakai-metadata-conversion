@@ -1,6 +1,7 @@
 from glob import glob
 
 import pytest
+from lxml import etree
 
 import hakai_metadata_conversion.erddap as erddap
 from hakai_metadata_conversion.__main__ import load
@@ -40,6 +41,58 @@ def test_erddap_global_attributes_xml(record):
     result = erddap.global_attributes(record, output="xml", language="en")
     assert result
 
+
+class TestDatasetXmlEscaping:
+    """The generated dataset.xml has to be well-formed XML.
+
+    It is built by string concatenation to keep its existing shape, so nothing
+    escapes markup characters unless _generate_dataset_xml does. Before it did,
+    an abstract containing "RGB & NIR" or "< 0.5% to > 5 %" produced a file
+    ERDDAP could not load - 49 of the 317 committed records were affected.
+    """
+
+    @pytest.mark.core
+    @pytest.mark.parametrize(
+        "value",
+        [
+            "RGB & NIR",
+            "< 0.5% to > 5 % body weight",
+            "a rapid >90% decline",
+            "Fish & Wildlife <Branch>",
+            "quotes ' and \" together",
+            "already escaped &amp; stays distinct",
+        ],
+    )
+    def test_values_survive_as_well_formed_xml(self, value):
+        xml = erddap._generate_dataset_xml({"summary": value})
+        root = etree.fromstring(xml.encode("utf-8"))
+        assert root.find("att").text == value
+
+    @pytest.mark.core
+    def test_markup_in_a_value_cannot_inject_elements(self):
+        """A value is text, never structure."""
+        xml = erddap._generate_dataset_xml(
+            {"summary": "</att><att name='license'>stolen</att>"}
+        )
+        root = etree.fromstring(xml.encode("utf-8"))
+        assert [att.get("name") for att in root.findall("att")] == ["summary"]
+
+    @pytest.mark.core
+    def test_attribute_names_are_escaped(self):
+        xml = erddap._generate_dataset_xml({"od&d'key": "value"})
+        root = etree.fromstring(xml.encode("utf-8"))
+        assert root.find("att").get("name") == "od&d'key"
+
+    @pytest.mark.core
+    def test_multilingual_values_are_escaped(self):
+        xml = erddap._generate_dataset_xml(
+            {"title": "A & B"},
+            {"title": {"en": "A & B", "fr": "A < B"}},
+        )
+        root = etree.fromstring(xml.encode("utf-8"))
+        assert [att.text for att in root.findall("att")] == ["A & B", "A & B", "A < B"]
+
+
 @pytest.mark.metadataFiles
 @pytest.mark.parametrize(
     "file",
@@ -51,6 +104,9 @@ def test_cioos_metadata_files_to_erddap_xml(file):
     result = erddap.global_attributes(data, output="xml", language="en")
 
     assert result
+    # Parses rather than just being truthy: a non-empty string that ERDDAP
+    # cannot load is exactly the failure this is guarding against.
+    etree.fromstring(result.strip().encode("utf-8"))
 
 def test_erddap_global_attributes_xml_multilingual_suffix(record):
     result = erddap.global_attributes(record, output=None, language="en", multilingual="suffix")

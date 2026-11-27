@@ -26,6 +26,7 @@ import json
 import os
 import re
 from pathlib import Path
+from xml.sax.saxutils import unescape
 
 import pytest
 import yaml
@@ -235,15 +236,20 @@ def _erddap_attributes(text):
     attributes is forgiven, and drops KNOWN_ERDDAP_ATTRS by name rather than by
     text match - so an attribute whose *value* contains the marker is safe.
 
-    Pulled out with a regex rather than an XML parser on purpose: 49 of the 317
-    committed files are not well-formed XML, because the conversion writes
-    attribute text without escaping and values like "RGB & NIR" leave a bare
-    ampersand. The regenerated output has the same flaw. That is a real defect
-    in erddap.global_attributes - ERDDAP needs a valid datasets.xml - but it is
-    not this module's to fix, and a strict parser here would just fail on it.
+    Pulled out with a regex rather than an XML parser because 49 of the 317
+    committed files are not well-formed XML: they were written before
+    _generate_dataset_xml escaped anything, so a value like "RGB & NIR" or
+    "< 0.5% to > 5 %" left a bare ampersand or angle bracket. The conversion
+    escapes now, so regenerated output parses - but the committed files still
+    do not, and a strict parser here would fail on them rather than compare.
+
+    Values are unescaped before comparison so the two encodings of the same
+    text match: the committed files carry a raw "&", the regenerated output
+    "&amp;", and both mean the same character. That keeps this test about
+    content while the escaping itself is covered in test_erddap.py.
     """
     return sorted(
-        (name, value.strip())
+        (name, unescape(value).strip())
         for name, value in _ERDDAP_ATT.findall(text)
         if name not in KNOWN_ERDDAP_ATTRS
     )
