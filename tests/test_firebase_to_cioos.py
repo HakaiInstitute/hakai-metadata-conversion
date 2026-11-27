@@ -6,6 +6,7 @@ records quietly losing data.
 """
 
 import pytest
+from loguru import logger
 
 from hakai_metadata_conversion.firebase_to_cioos import (
     UnknownVocabularyError,
@@ -14,6 +15,22 @@ from hakai_metadata_conversion.firebase_to_cioos import (
     licenses,
     record_json_to_yaml,
 )
+
+
+@pytest.fixture
+def logged_errors():
+    """Collect ERROR messages emitted through loguru.
+
+    pytest's caplog only sees the stdlib logging module, and this package logs
+    through loguru, so an assertion built on caplog passes whether or not the
+    log line exists. A sink captures the real thing - which matters here,
+    because the error is the only signal a dropped licence produces in
+    non-strict mode.
+    """
+    messages = []
+    sink = logger.add(messages.append, level="ERROR", format="{message}")
+    yield messages
+    logger.remove(sink)
 
 
 class TestKeywordSanitizing:
@@ -84,14 +101,30 @@ class TestLicenceResolution:
             "CC-BY-4.0"
         )
 
-    def test_absent_licence_is_not_an_error(self, caplog):
+    def test_absent_licence_is_not_an_error(self, logged_errors):
         """A record with no licence at all is normal, not a vocabulary miss."""
         assert _resolve_licence({"identifier": "x"}) is None
         assert _resolve_licence({"license": "", "identifier": "x"}) is None
+        assert logged_errors == []
 
-    def test_unknown_code_logs_and_returns_none(self, monkeypatch, capsys):
+    def test_unknown_code_logs_an_error_and_returns_none(
+        self, monkeypatch, logged_errors
+    ):
+        """The log line is the whole signal here, so assert on it.
+
+        Without this, deleting the logger.error call would leave every other
+        assertion in this class green and restore the silent licence loss.
+        """
         monkeypatch.delenv("HAKAI_STRICT_VOCABULARY", raising=False)
         assert _resolve_licence({"license": "made-up", "identifier": "rec-1"}) is None
+        assert len(logged_errors) == 1, logged_errors
+        assert "made-up" in logged_errors[0]
+        assert "rec-1" in logged_errors[0]
+
+    def test_known_licence_logs_nothing(self, monkeypatch, logged_errors):
+        monkeypatch.delenv("HAKAI_STRICT_VOCABULARY", raising=False)
+        assert _resolve_licence({"license": "None", "identifier": "rec-1"})
+        assert logged_errors == []
 
     def test_unknown_code_raises_under_strict(self, monkeypatch):
         monkeypatch.setenv("HAKAI_STRICT_VOCABULARY", "true")

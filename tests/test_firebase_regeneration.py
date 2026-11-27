@@ -30,6 +30,7 @@ from pathlib import Path
 import pytest
 import yaml
 from deepdiff import DeepDiff
+from lxml import etree
 
 from hakai_metadata_conversion.record import Record
 
@@ -53,6 +54,14 @@ pytestmark = [
 UNJOINABLE = {
     "the_quadra_biomarathon__year_r_6231a",
     "mean_tidal_current___coastal_b_15caa",
+}
+
+# Published records with no output under hakai/ at all. Both have a complete
+# four-file set under unpublished/hakai/, so the files were never moved when the
+# record was published. Listed in docs/firebase-record-followups.md.
+PUBLISHED_WITHOUT_OUTPUTS = {
+    "48014fde-f150-4111-8f9f-424488fe000b",  # Microbial Oceanography Time Series
+    "6231af54-b405-4b6b-bfb9-4d9fe8ad247d",  # The Quadra Biomarathon
 }
 
 # Differences every record shows, because the conversion moved on after the
@@ -198,7 +207,13 @@ STEMS = [stem for stem, _ in PAIRS]
 
 
 def _to_cioos(record):
-    converted = Record(source=dict(record), schema="firebase")
+    # Deep copy, not dict(): record_json_to_yaml writes back into the record it
+    # is given - appending "distributor" to owner roles, and hanging instruments
+    # off platforms - and a shallow copy shares those nested lists with the
+    # parsed export that PAIRS holds. The conversion happens to be idempotent,
+    # so this is insurance rather than a live failure, but a test should not be
+    # editing its own fixture either way.
+    converted = Record(source=copy.deepcopy(record), schema="firebase")
     converted.load()
     converted.convert_to_cioos_schema()
     return converted.metadata
@@ -210,8 +225,54 @@ def _convert(cioos, output_format):
     return record.convert_to(output_format)
 
 
-def _lines(text):
-    return [line.rstrip() for line in text.strip().splitlines()]
+_ERDDAP_ATT = re.compile(r"<att name='([^']+)'>(.*?)</att>", re.DOTALL)
+
+
+def _erddap_attributes(text):
+    """Extract erddap output as sorted (name, value) pairs.
+
+    Keeps every value tied to its attribute name, so only the order of the
+    attributes is forgiven, and drops KNOWN_ERDDAP_ATTRS by name rather than by
+    text match - so an attribute whose *value* contains the marker is safe.
+
+    Pulled out with a regex rather than an XML parser on purpose: 49 of the 317
+    committed files are not well-formed XML, because the conversion writes
+    attribute text without escaping and values like "RGB & NIR" leave a bare
+    ampersand. The regenerated output has the same flaw. That is a real defect
+    in erddap.global_attributes - ERDDAP needs a valid datasets.xml - but it is
+    not this module's to fix, and a strict parser here would just fail on it.
+    """
+    return sorted(
+        (name, value.strip())
+        for name, value in _ERDDAP_ATT.findall(text)
+        if name not in KNOWN_ERDDAP_ATTRS
+    )
+
+
+def _canonical_xml(text):
+    """Parse XML into a form where sibling order is ignored but nesting is not.
+
+    Each element becomes (tag, attributes, text, sorted children), recursively.
+    Sorting the children of a node reorders siblings while keeping every value
+    attached to the element that holds it.
+
+    This replaced a sorted list of raw lines, which was too weak to mean much:
+    swapping the values of the revision and publication dates leaves the same
+    set of lines, so the comparison passed while the metadata had changed.
+    """
+    root = etree.fromstring(
+        text.strip().encode("utf-8"), etree.XMLParser(remove_blank_text=True)
+    )
+
+    def node(element):
+        return (
+            element.tag,
+            tuple(sorted(element.attrib.items())),
+            (element.text or "").strip(),
+            tuple(sorted(node(child) for child in element)),
+        )
+
+    return node(root)
 
 
 def test_every_output_group_is_complete():
@@ -243,9 +304,13 @@ def test_every_published_firebase_record_has_outputs():
         ]
         for stem in STEMS
     }
-    # 48014fde (Microbial Oceanography) and 6231af54 (Quadra Biomarathon) are
-    # published but their files still sit under unpublished/hakai/.
-    assert len(missing) == 2, f"published records with no hakai/ output: {sorted(missing)}"
+    # Compared as an exact set, not a count: counting lets a newly missing
+    # record take the place of one that got restored, leaving the total at two
+    # and the test green while a different record has lost its outputs.
+    assert missing == PUBLISHED_WITHOUT_OUTPUTS, (
+        f"unexpected: {sorted(missing - PUBLISHED_WITHOUT_OUTPUTS)}; "
+        f"restored (drop from the list): {sorted(PUBLISHED_WITHOUT_OUTPUTS - missing)}"
+    )
 
 
 @pytest.mark.parametrize("stem,record", PAIRS, ids=STEMS)
@@ -309,21 +374,19 @@ def test_committed_yaml_reproduces_committed_erddap(stem):
       - infoUrl / metadata_link, removed by 4445dea
       - attribute order: acdd now builds `comment` before `project`, where the
         committed files have them the other way round. Same attributes, same
-        values, different position - compared as a sorted multiset.
+        values, different position.
+
+    Compared as (name, value) pairs parsed from the XML rather than as sorted
+    text lines. Sorting lines would reach the same answer for this format - the
+    output is flat att elements, not a tree - but it detaches nothing only by
+    luck, and the xml test next door shows where that assumption breaks.
     """
     source = Record(source=str(HAKAI_DIR / f"{stem}.yaml"), schema="CIOOS")
     source.load()
     source.convert_to_cioos_schema()
 
-    def strip(lines):
-        return sorted(
-            line
-            for line in lines
-            if not any(f"<att name='{a}'>" in line for a in KNOWN_ERDDAP_ATTRS)
-        )
-
-    committed = strip(_lines((HAKAI_DIR / f"{stem}.erddap").read_text(encoding="utf-8")))
-    regenerated = strip(_lines(source.convert_to("erddap")))
+    committed = _erddap_attributes((HAKAI_DIR / f"{stem}.erddap").read_text(encoding="utf-8"))
+    regenerated = _erddap_attributes(source.convert_to("erddap"))
     assert committed == regenerated, (
         f"{stem} erddap differs beyond {sorted(KNOWN_ERDDAP_ATTRS)} and attribute order"
     )
@@ -331,17 +394,20 @@ def test_committed_yaml_reproduces_committed_erddap(stem):
 
 @pytest.mark.parametrize("stem", STEMS)
 def test_committed_yaml_reproduces_committed_xml(stem):
-    """ISO 19115-3 output should hold the same elements as the committed file.
+    """ISO 19115-3 output should hold the same tree as the committed file.
 
-    Every record currently differs in element order only - CI_Date swaps
-    revision/publication and PT_Locale swaps eng/fra. The output is
+    Every record currently differs in sibling order only - CI_Date swaps
+    revision/publication and PT_Locale swaps eng/fra - and the output is
     deterministic across hash seeds, so this is a stable ordering change rather
-    than dict/set iteration noise, and the line multiset still matches exactly.
+    than dict/set iteration noise.
+
+    Compared as canonical trees rather than sorted lines, so only sibling order
+    is forgiven: a value that moves to a different element still fails.
     """
     source = Record(source=str(HAKAI_DIR / f"{stem}.yaml"), schema="CIOOS")
     source.load()
     source.convert_to_cioos_schema()
 
-    committed = _lines((HAKAI_DIR / f"{stem}.xml").read_text(encoding="utf-8"))
-    regenerated = _lines(source.convert_to("iso19115-3_xml"))
-    assert sorted(committed) == sorted(regenerated), f"{stem} xml content differs"
+    committed = _canonical_xml((HAKAI_DIR / f"{stem}.xml").read_text(encoding="utf-8"))
+    regenerated = _canonical_xml(source.convert_to("iso19115-3_xml"))
+    assert committed == regenerated, f"{stem} xml content differs"
