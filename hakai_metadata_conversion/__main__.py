@@ -132,6 +132,12 @@ def convert(
 
     logger.debug("Processing {} files", len(files))
     returned_output = ""
+    # Held separately from the per-file destination below. This used to be the
+    # `output_file` variable itself, reassigned inside the loop: the first file
+    # set it, and every file after that took the `elif` branch and wrote over
+    # the same path, so converting a glob left only the last record on disk.
+    explicit_output = Path(output_file) if output_file else None
+    wrote_any = False
     for file in files:
         logger.debug("Processing file {}", file)
         record = (
@@ -150,26 +156,26 @@ def convert(
         logger.debug(f"Converting to {output_format}")
         converted_record = record.convert_to(output_format)
 
-        # Generate output file path
-        if output_dir and not output_file and record.source_is_path():
-            output_file = (
+        # Generate output file path, fresh for each input
+        destination = explicit_output
+        if destination is None and output_dir and record.source_is_path():
+            destination = (
                 Path(output_dir) / Path(file).with_suffix(f".{output_format}").name
             )
-        elif output_file:
-            output_file = Path(output_file)
 
         # Write to file or return output
-        if output_file:
-            logger.info("Writing to file {}", output_file)
-            output_file.write_text(converted_record, encoding=output_encoding)
+        if destination:
+            logger.info("Writing to file {}", destination)
+            destination.write_text(converted_record, encoding=output_encoding)
+            wrote_any = True
         else:
             returned_output += "\n" + converted_record
 
-    if not output_file:
+    if wrote_any:
+        logger.info("Conversion completed.")
+    else:
         logger.info("Returning converted output")
         print(returned_output)
-    else:
-        logger.info("Conversion completed.")
 
     return returned_output
 

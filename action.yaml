@@ -61,8 +61,14 @@ runs:
         python-version: 3.11
 
     - name: Install dependencies
+      # Install the converter from the action's own checkout rather than from
+      # the remote default branch. Fetching main meant the action never ran the
+      # code it shipped with: `uses: ./` tested main instead of the commit under
+      # test, and a caller pinning a tag silently got main too.
       shell: bash
-      run: pip install git+https://github.com/HakaiInstitute/hakai-metadata-conversion.git
+      env:
+        ACTION_PATH: ${{ github.action_path }}
+      run: pip install "$ACTION_PATH"
 
     - name: Run conversion
       shell: bash
@@ -84,6 +90,11 @@ runs:
         --output-format "$OUTPUT_FORMAT"
 
     - name: Commit outputs
+      # The `commit` input existed but nothing read it, so this step ran even
+      # for callers that asked it not to. That matters now the workflow token is
+      # `contents: read`: a read-only caller passing `commit: false` still
+      # reached here and failed trying to push a branch.
+      if: inputs.commit == 'true'
       uses: peter-evans/create-pull-request@c5a7806660adbe173f04e3e038b0ccdcd758773c # v6
       with:
         commit-message: ${{ inputs.commit-message }}
