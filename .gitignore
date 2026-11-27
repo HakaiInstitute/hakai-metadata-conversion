@@ -5,6 +5,11 @@ tests/results
 .env
 tests/records/firebase/cioos-metadata-form-8d942-default-rtdb--OTS9E-8LKZrL_Yuggg0-export.xml
 
+# Firebase RTDB dump used by test_firebase_regeneration.py. Kept out of the repo
+# deliberately: 19MB, and hakai.users carries staff names and email addresses.
+# The tests skip when it is absent.
+tests/records/firebase/cioos-metadata-form-export.json
+
 # PDC ISO records are downloaded on demand by the tests, not committed
 tests/records/*_iso.xml
 

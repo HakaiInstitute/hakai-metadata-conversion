@@ -12,6 +12,8 @@ from hakai_metadata_conversion import datacite
 from hakai_metadata_conversion.load_from import datacite as datacite_loader
 from hakai_metadata_conversion.firebase_to_cioos import record_json_to_yaml
 
+from tests.conftest import firebase_record_files
+
 load_dotenv()
 
 
@@ -107,7 +109,8 @@ def test_xml_output(record, tmp_path):
 
 
 @pytest.mark.parametrize(
-    "firebase_record", (Path(__file__).parent / "records" / "firebase").glob("*.json")
+    "firebase_record",
+    firebase_record_files(Path(__file__).parent / "records" / "firebase"),
 )
 def test_firebase_record_to_xml(firebase_record):
     """
@@ -127,7 +130,8 @@ def test_firebase_record_to_xml(firebase_record):
 
 
 @pytest.mark.parametrize(
-    "firebase_record", (Path(__file__).parent / "records" / "firebase").glob("*.json")
+    "firebase_record",
+    firebase_record_files(Path(__file__).parent / "records" / "firebase"),
 )
 def test_firebase_record_schema(firebase_record):
     """
@@ -145,7 +149,8 @@ def test_firebase_record_schema(firebase_record):
 
 
 @pytest.mark.parametrize(
-    "firebase_record", (Path(__file__).parent / "records" / "firebase").glob("*.json")
+    "firebase_record",
+    firebase_record_files(Path(__file__).parent / "records" / "firebase"),
 )
 def test_firebase_record_to_json(firebase_record, tmp_path):
     """
@@ -419,7 +424,8 @@ class TestDataCiteSubmission:
     reason="DataCite test API credentials not set (DATACITE_REPOSITORY_ID, DATACITE_PASSWORD, DATACITE_PREFIX)",
 )
 @pytest.mark.parametrize(
-    "firebase_record", (Path(__file__).parent / "records" / "firebase").glob("*.json")
+    "firebase_record",
+    firebase_record_files(Path(__file__).parent / "records" / "firebase"),
 )
 def test_firebase_record_submit_datacite_api(firebase_record):
     """
