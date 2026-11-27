@@ -4,9 +4,50 @@ the metadata-xml module.
 """
 
 import json
+import os
 from pathlib import Path
 
+from loguru import logger
+
 dir = Path(__file__).parent
+
+
+class UnknownVocabularyError(ValueError):
+    """A record names a vocabulary term the conversion has no entry for."""
+
+
+def _strict_vocabulary() -> bool:
+    """Whether an unresolvable vocabulary term should raise rather than log.
+
+    Read per call rather than captured at import so a caller can flip it
+    without reimporting the module - the CLI, a cleanup run or a test can set
+    HAKAI_STRICT_VOCABULARY=true and get hard failures on the spot.
+    """
+    return os.getenv("HAKAI_STRICT_VOCABULARY", "false").lower() == "true"
+
+
+def _resolve_licence(record: dict) -> dict:
+    """Look up a record's licence, reporting rather than silently dropping it.
+
+    A miss used to vanish into the output: `licenses.get()` returned None, the
+    key scrubbed out, and the record published with no licence at all. That is
+    how five records sat with `license: "None"` - the licence `code`, where the
+    map was keyed by its name - losing their licence for months. Loud by
+    default now, fatal under HAKAI_STRICT_VOCABULARY.
+    """
+    code = record.get("license")
+    licence = licenses.get(code)
+    if code and not licence:
+        message = (
+            f"Unknown licence {code!r} on record {record.get('identifier')!r}; "
+            "use_constraints.licence omitted"
+        )
+        if _strict_vocabulary():
+            raise UnknownVocabularyError(message)
+        # ERROR rather than WARNING so the applications embedding this package
+        # forward it to Sentry - we want to hear about every one of these.
+        logger.error(message)
+    return licence
 
 
 def scrub_dict(d_in):
@@ -94,7 +135,15 @@ def _sanitize_keyword_list(keyword_list):
     - Keywords joined by '|', '\n', or '>' are split into separate entries.
     - HTML entities like '&gt;' are decoded before splitting.
     - Only characters allowed by CKAN tags are kept:
-      alphanumeric, spaces, and the symbols  - _ . , ; ' ( )
+      alphanumeric, spaces, and the symbols  - _ . , ; ' ’ : ( ) /
+
+    The typographic apostrophe and the colon are in that set deliberately.
+    Without them this stripped characters out of the middle of First Nations
+    names - Da’naxda’xw became Danaxdaxw, Gitga’at became Gitgaat, and
+    Ka:'yu:'k't'h'/Che:k'tles7et'h' lost its colons - which is worse than a tag
+    CKAN might reject. Note the set is already wider than stock CKAN's
+    tag_name_validator (^[\\w \\-.]*$), which would also reject the comma,
+    semicolon, apostrophe, parenthesis and slash kept here.
     """
     import html
     import re
@@ -111,7 +160,7 @@ def _sanitize_keyword_list(keyword_list):
             # Strip whitespace
             part = part.strip()
             # Remove characters not allowed by CKAN tag validation
-            part = re.sub(r"[^\w\s\-_.,;'()/]", "", part, flags=re.UNICODE)
+            part = re.sub(r"[^\w\s\-_.,;'’:()/]", "", part, flags=re.UNICODE)
             # Collapse multiple spaces
             part = re.sub(r"\s+", " ", part).strip()
             if part:
@@ -257,7 +306,11 @@ def record_json_to_yaml(record):
     language = record.get("language")
     region = record.get("region")
 
-    base_url = "https://cioos-siooc.github.io/metadata-entry-form#"
+    # The Hakai fork's GitHub Pages URL, which is what every committed record
+    # under hakai-metadata-entry-form-files was generated with. The repository
+    # is hakaiinstitute/hakai-metadata-entry-form, so the path carries the
+    # `hakai-` prefix - without it this points at a 404.
+    base_url = "https://hakaiinstitute.github.io/hakai-metadata-entry-form#"
     full_url = f"{base_url}/{language}/{region}/{user_id}/{record_id}"
 
     polygon = record.get("map", {}).get("polygon", "")
@@ -270,11 +323,7 @@ def record_json_to_yaml(record):
             "maintenance_note": "Generated from " + full_url,
             "use_constraints": {
                 "limitations": record.get("limitations", "None"),
-                "licence": licenses.get(
-                    record.get(
-                        "license",
-                    )
-                ),
+                "licence": _resolve_licence(record),
             },
             "comment": record.get("comment"),
             "history": record.get("history"),

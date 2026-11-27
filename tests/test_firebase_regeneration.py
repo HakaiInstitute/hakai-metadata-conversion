@@ -58,40 +58,26 @@ UNJOINABLE = {
 # Differences every record shows, because the conversion moved on after the
 # files were written. Paths carry a DeepDiff kind prefix and have list indices
 # collapsed to [*] so they aggregate.
-#   topic_category arrived with "fix: pass topic category from firebase schema
-#     to ISO XML" (5aa0a09); scope / metadataScope / resourceType alongside it.
-#   maintenance_note is built from a base_url that is hakaiinstitute.github.io in
-#     the code and hakaiinstitute.github.io in every committed file.
+# topic_category arrived with "fix: pass topic category from firebase schema to
+# ISO XML" (5aa0a09); scope / metadataScope / resourceType alongside it.
+#
+# maintenance_note used to be listed here too, because the base_url pointed at
+# cioos-siooc.github.io where every committed file says
+# hakaiinstitute.github.io/hakai-metadata-entry-form. That was a wrong URL
+# rather than an expected delta, and is fixed in firebase_to_cioos now.
 KNOWN_CODE_DELTAS = {
     "dictionary_item_added|root['identification']['topic_category']",
     "dictionary_item_added|root['metadata']['metadataScope']",
     "dictionary_item_added|root['metadata']['resourceType']",
     "dictionary_item_added|root['metadata']['scope']",
-    "values_changed|root['metadata']['maintenance_note']",
 }
 
-# BUG, not drift: _sanitize_keyword_list keeps the ASCII apostrophe but strips
-# U+2019 and ':', so First Nations names lose characters -
-# "Da'naxda'xw" -> "Danaxdaxw", "Gitga'at" -> "Gitgaat",
-# "Ka:'yu:'k't'h'" -> "Ka'yu'k't'h'". The committed files have them intact.
-# Delete this set once the character class is widened.
-KEYWORD_MANGLING = {
-    "bc_estuary_water_quality_monit_05c75",
-    "bc_estuary_water_quality_monit_0e50f",
-    "bc_estuary_water_quality_monit_e9b72",
-    "fin_island___k_yel___2020___ai_d2e83",
-}
-
-# BUG, not drift: these records carry license "None", which the licenses map no
-# longer has a key for - it now spells that entry "No License" - so the licence
-# is dropped from use_constraints entirely. The committed files still hold it.
-LICENCE_DROPPED = {
-    "discrete_water_chemistry_measu_a7873",
-    "gitga_at_territory_coastal_map_b5f0f",
-    "gitga_at_territory_coastal_mon_5b4cb",
-    "high_resolution_coastal_carbon_e5e61",
-    "vertical_water_property_profil_94d21",
-}
+# Two sets used to live here, for records this comparison caught losing data:
+# four whose First Nations keywords were being stripped of U+2019 and ':', and
+# five carrying license "None" whose licence was silently dropped. Both are
+# fixed in firebase_to_cioos now, so those nine records regenerate cleanly and
+# are covered by tests/test_firebase_to_cioos.py. They are gone from here rather
+# than listed as expected - that is the point of the exercise.
 
 # Records edited in firebase after their files were written, so the export no
 # longer describes what is on disk - revision timestamps bumped, orcids
@@ -113,7 +99,7 @@ KNOWN_DRIFTED = {
     "late_pleistocene_and_early_hol_a161a",
 }
 
-EXPECTED_EXTRA = KEYWORD_MANGLING | LICENCE_DROPPED | KNOWN_DRIFTED
+EXPECTED_EXTRA = KNOWN_DRIFTED
 
 # ERDDAP attributes the committed files carry that the conversion no longer
 # produces the same way. "remove metadata_link inpu and add kwargs to add as
