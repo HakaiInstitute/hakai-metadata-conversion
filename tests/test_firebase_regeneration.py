@@ -83,23 +83,58 @@ KNOWN_CODE_DELTAS = {
 # longer describes what is on disk - revision timestamps bumped, orcids
 # corrected, resources added, one abstract rewritten. Data drift, not conversion
 # drift; regenerating the files clears these.
+#
+# Each record lists the exact paths expected to differ, and the test compares
+# against that set rather than accepting any difference. Allowing "something
+# differs" would let a licence drop or a mangled keyword on one of these eleven
+# pass unnoticed - which is the class of bug this whole module exists to catch.
+# The full record set lives in docs/firebase-record-followups.md.
 KNOWN_DRIFTED = {
-    "bc_estuary_water_quality_monit_b9226",
-    "conductivity__temperature_and__86343",
-    "data_from_manuscript__distribu_d43a7",
-    "freezing_seawater_samples_alte_290a0",
-    "hakai_institute_juvenile_salmo_6c449",
-    "juvenile_salmon_migration_dyna_1769a",
-    "sea_star_microbiome_data_from__33c8c",
-    "sea_stars_2024_experiment___en_31ac8",
-    "size_fractionated_zooplankton__dbb33",
-    "zooplankton_abundance_and_biom_39a83",
+    "bc_estuary_water_quality_monit_b9226": {
+        "values_changed|root['metadata']['dates']['revision']",
+    },
+    "conductivity__temperature_and__86343": {
+        "values_changed|root['contact'][*]['individual']['orcid']",
+        "values_changed|root['metadata']['dates']['revision']",
+    },
+    "data_from_manuscript__distribu_d43a7": {
+        "values_changed|root['metadata']['dates']['revision']",
+    },
+    "freezing_seawater_samples_alte_290a0": {
+        "iterable_item_added|root['identification']['associated_resources'][*]",
+        "values_changed|root['metadata']['dates']['revision']",
+    },
+    "hakai_institute_juvenile_salmo_6c449": {
+        "values_changed|root['contact'][*]['individual']['orcid']",
+        "values_changed|root['metadata']['dates']['revision']",
+    },
+    "juvenile_salmon_migration_dyna_1769a": {
+        "values_changed|root['contact'][*]['individual']['orcid']",
+        "values_changed|root['metadata']['dates']['revision']",
+    },
     # Written 18 seconds before the record was first published, so the committed
     # yaml predates its own publication date.
-    "late_pleistocene_and_early_hol_a161a",
+    "late_pleistocene_and_early_hol_a161a": {
+        "dictionary_item_added|root['metadata']['dates']['publication']",
+    },
+    "sea_star_microbiome_data_from__33c8c": {
+        "iterable_item_added|root['identification']['associated_resources'][*]",
+        "values_changed|root['metadata']['dates']['revision']",
+    },
+    "sea_stars_2024_experiment___en_31ac8": {
+        "iterable_item_added|root['identification']['associated_resources'][*]",
+        "values_changed|root['metadata']['dates']['revision']",
+    },
+    "size_fractionated_zooplankton__dbb33": {
+        "iterable_item_added|root['identification']['associated_resources'][*]",
+        "values_changed|root['metadata']['dates']['revision']",
+    },
+    "zooplankton_abundance_and_biom_39a83": {
+        "dictionary_item_added|root['identification']['abstract']['translations']",
+        "values_changed|root['identification']['abstract']['en']",
+        "values_changed|root['metadata']['dates']['revision']",
+    },
 }
-
-EXPECTED_EXTRA = KNOWN_DRIFTED
 
 # ERDDAP attributes the committed files carry that the conversion no longer
 # produces the same way. "remove metadata_link inpu and add kwargs to add as
@@ -229,7 +264,7 @@ def test_firebase_record_reproduces_committed_yaml(stem, record):
     # values_changed entirely, which hides every edited field and makes this
     # assertion look far stronger than it is.
     diff = DeepDiff(committed, regenerated, ignore_order=True)
-    unexplained = sorted(
+    unexplained = {
         path
         for kind, items in diff.items()
         for path in (
@@ -237,15 +272,14 @@ def test_firebase_record_reproduces_committed_yaml(stem, record):
             for p in (items.keys() if hasattr(items, "keys") else items)
         )
         if path not in KNOWN_CODE_DELTAS
-    )
+    }
 
-    if stem in EXPECTED_EXTRA:
-        assert unexplained, (
-            f"{stem} is listed as a known exception but now regenerates cleanly "
-            "- drop it from the list"
-        )
-        return
-    assert not unexplained, f"{stem} differs beyond the known code deltas: {unexplained}"
+    expected = KNOWN_DRIFTED.get(stem, set())
+    assert unexplained == expected, (
+        f"{stem}: firebase differences are not what KNOWN_DRIFTED records.\n"
+        f"  unexpected: {sorted(unexplained - expected)}\n"
+        f"  no longer present (drop from the list): {sorted(expected - unexplained)}"
+    )
 
 
 @pytest.mark.parametrize("stem", STEMS)
@@ -257,9 +291,13 @@ def test_committed_yaml_reproduces_committed_cff(stem):
     regenerated = yaml.safe_load(source.convert_to("cff"))
 
     diff = DeepDiff(committed, regenerated, ignore_order=True)
-    if stem in KNOWN_CFF_TYPE_CHANGED or stem in EXPECTED_EXTRA:
-        return
-    assert not diff, f"{stem} cff differs: {diff}"
+    allowed = {"values_changed|root['type']"} if stem in KNOWN_CFF_TYPE_CHANGED else set()
+    actual = {
+        f"{kind}|" + re.sub(r"\[\d+\]", "[*]", p)
+        for kind, items in diff.items()
+        for p in (items.keys() if hasattr(items, "keys") else items)
+    }
+    assert actual == allowed, f"{stem} cff differs: {diff}"
 
 
 @pytest.mark.parametrize("stem", STEMS)
@@ -286,8 +324,6 @@ def test_committed_yaml_reproduces_committed_erddap(stem):
 
     committed = strip(_lines((HAKAI_DIR / f"{stem}.erddap").read_text(encoding="utf-8")))
     regenerated = strip(_lines(source.convert_to("erddap")))
-    if stem in EXPECTED_EXTRA:
-        return
     assert committed == regenerated, (
         f"{stem} erddap differs beyond {sorted(KNOWN_ERDDAP_ATTRS)} and attribute order"
     )
@@ -308,6 +344,4 @@ def test_committed_yaml_reproduces_committed_xml(stem):
 
     committed = _lines((HAKAI_DIR / f"{stem}.xml").read_text(encoding="utf-8"))
     regenerated = _lines(source.convert_to("iso19115-3_xml"))
-    if stem in EXPECTED_EXTRA:
-        return
     assert sorted(committed) == sorted(regenerated), f"{stem} xml content differs"
