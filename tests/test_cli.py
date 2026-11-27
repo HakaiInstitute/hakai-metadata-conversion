@@ -1,4 +1,5 @@
 from glob import glob
+from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
@@ -21,6 +22,69 @@ def test_cli_help(runner):
     result = runner.invoke(cli, ["--help"])
     assert result.exit_code == 0
     assert "Usage: cioos-metadata-conversion [OPTIONS]" in result.output
+
+@pytest.mark.core
+def test_cli_glob_writes_one_output_per_input(runner, tmp_path):
+    """A glob matching several records must leave one output per record.
+
+    test_cli_on_test_files below looks like it covers this, but
+    tests/records/*.yaml matches a single file, so the multi-file path went
+    untested - and was broken: the destination was computed once into the same
+    variable the loop tested, so every record after the first overwrote the
+    first record's file and only the last survived.
+    """
+    source = Path("tests/records/test_record1.yaml").read_text(encoding="utf-8")
+    inputs = tmp_path / "in"
+    outputs = tmp_path / "out"
+    inputs.mkdir()
+    outputs.mkdir()
+    for name in ("rec_a", "rec_b", "rec_c"):
+        (inputs / f"{name}.yaml").write_text(source, encoding="utf-8")
+
+    result = runner.invoke(
+        cli,
+        [
+            "convert",
+            "--input",
+            str(inputs / "*.yaml"),
+            "--input-schema",
+            "CIOOS",
+            "--output-format",
+            "cff",
+            "--output-dir",
+            str(outputs),
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    assert sorted(p.name for p in outputs.iterdir()) == [
+        "rec_a.cff",
+        "rec_b.cff",
+        "rec_c.cff",
+    ]
+
+
+@pytest.mark.core
+def test_cli_single_output_file_still_honoured(runner, tmp_path):
+    """--output-file keeps overriding --output-dir for a single input."""
+    destination = tmp_path / "CITATION.cff"
+    result = runner.invoke(
+        cli,
+        [
+            "convert",
+            "--input",
+            "tests/records/test_record1.yaml",
+            "--input-schema",
+            "CIOOS",
+            "--output-format",
+            "cff",
+            "--output-file",
+            str(destination),
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    assert destination.is_file()
+    assert destination.read_text(encoding="utf-8").strip()
+
 
 @pytest.mark.core
 def test_cli_on_test_files(runner, tmpdir):

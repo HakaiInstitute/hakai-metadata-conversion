@@ -10,23 +10,28 @@ on:
       - main
       - development
 
+permissions:
+  contents: read
+
 jobs:
   test:
     name: Test and Lint
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           path: "."
+          persist-credentials: false
       - name: Checkout hakai metadata filesxz
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           repository: HakaiInstitute/hakai-metadata-entry-form-files
           path: ./tests/records/hakai-metadata-entry-form-files
+          persist-credentials: false
 
       - name: Set up Python 3.12
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: 3.12
       - name: Install uv
@@ -79,7 +84,9 @@ jobs:
           PY
 
       - name: Convert test record to CITATION.cff if main branch
-        uses: hakaiinstitute/hakai-metadata-conversion@main
+        # The action from this checkout rather than hakaiinstitute/...@main, so the
+        # step exercises the code under test instead of whatever main points at.
+        uses: ./
         if: github.ref == 'refs/heads/main'
         with:
           input: tests/records/test_record1.json

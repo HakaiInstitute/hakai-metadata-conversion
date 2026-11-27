@@ -56,25 +56,46 @@ runs:
   steps:
 
     - name: Set up Python 3.11
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
       with:
         python-version: 3.11
 
     - name: Install dependencies
+      # Install the converter from the action's own checkout rather than from
+      # the remote default branch. Fetching main meant the action never ran the
+      # code it shipped with: `uses: ./` tested main instead of the commit under
+      # test, and a caller pinning a tag silently got main too.
       shell: bash
-      run: pip install git+https://github.com/HakaiInstitute/hakai-metadata-conversion.git
+      env:
+        ACTION_PATH: ${{ github.action_path }}
+      run: pip install "$ACTION_PATH"
 
     - name: Run conversion
       shell: bash
+      # Inputs reach the shell as environment variables rather than being expanded
+      # into the script, where anything a caller passed would have run as code.
+      # Quoting them also keeps the shell's hands off the input glob - convert()
+      # globs the pattern itself and --input takes a single value, so an expanded
+      # pattern matching several files used to turn into stray arguments.
+      env:
+        INPUT: ${{ inputs.input }}
+        OUTPUT_DIR: ${{ inputs.output-dir }}
+        OUTPUT_FILE: ${{ inputs.output-file }}
+        OUTPUT_FORMAT: ${{ inputs.output-format }}
       run: |
         hakai_metadata_conversion convert \
-        --input ${{ inputs.input }} \
-        --output-dir ${{ inputs.output-dir }} \
-        --output-file ${{ inputs.output-file }} \
-        --output-format ${{ inputs.output-format }}
+        --input "$INPUT" \
+        --output-dir "$OUTPUT_DIR" \
+        --output-file "$OUTPUT_FILE" \
+        --output-format "$OUTPUT_FORMAT"
 
     - name: Commit outputs
-      uses: peter-evans/create-pull-request@v6
+      # The `commit` input existed but nothing read it, so this step ran even
+      # for callers that asked it not to. That matters now the workflow token is
+      # `contents: read`: a read-only caller passing `commit: false` still
+      # reached here and failed trying to push a branch.
+      if: inputs.commit == 'true'
+      uses: peter-evans/create-pull-request@c5a7806660adbe173f04e3e038b0ccdcd758773c # v6
       with:
         commit-message: ${{ inputs.commit-message }}
         title: ${{ inputs.title }}
