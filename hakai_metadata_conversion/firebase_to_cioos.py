@@ -1,0 +1,401 @@
+"""
+Pulls metadata records from Firebase and translate them into XML via
+the metadata-xml module.
+"""
+
+import json
+from pathlib import Path
+
+dir = Path(__file__).parent
+
+
+def scrub_dict(d_in):
+    """
+    From:
+    https://stackoverflow.com/questions/12118695/efficient-way-to-remove-keys-with-empty-strings-from-a-dict
+    """
+    new_dict = {}
+    for key, val in d_in.items():
+        if isinstance(val, dict):
+            val = scrub_dict(val)
+        if isinstance(val, list):
+            val = scrub_list(val)
+        if val not in ("", None, {}):
+            new_dict[key] = val
+    return new_dict
+
+
+def scrub_list(d_in):
+    "remove empty lists"
+    scrubbed_list = []
+    for i in d_in:
+        if isinstance(i, dict):
+            i = scrub_dict(i)
+        scrubbed_list.append(i)
+    return scrubbed_list
+
+
+def scrub_keys(d_in):
+    "remove empty lists that are properties of a dict"
+    scrubbed = {}
+    for k in d_in:
+        if d_in[k]:
+            scrubbed[k] = d_in[k]
+    return scrubbed
+
+
+def remove_nones(items):
+    return list(filter(lambda item: item is not None, items))
+
+
+def get_licenses():
+    with open(dir / "resources/licenses.json", encoding="utf-8") as f:
+        return json.load(f)
+
+
+def get_eov_translations():
+    with open(dir / "resources/eov.json", encoding="utf-8") as f:
+        eovs = json.load(f)
+        translation = {}
+        for eov in eovs:
+            translation[eov["value"]] = eov["label FR"]
+        return translation
+
+
+def get_epsg():
+    with open(dir / "resources/epsg.json", encoding="utf-8") as f:
+        epsgDict = {}
+        epsgJson = json.load(f)
+        if epsgJson:
+            epsgDict = {str(x["Code"]): x for x in epsgJson}
+        return epsgDict
+
+
+licenses = get_licenses()
+eov_translations = get_eov_translations()
+epsg = get_epsg()
+
+
+def eovs_to_fr(eovs_en):
+    """Translate a list of EOVs in english to a list in french"""
+    return [eov_translations.get(eov, "") for eov in eovs_en if eov]
+
+
+def verify_translation(verified, message):
+    if not verified:
+        return message
+    return ""
+
+
+def _sanitize_keyword_list(keyword_list):
+    """Split and clean a list of keywords.
+
+    Handles common issues that cause CKAN tag validation failures:
+    - Keywords joined by '|', '\n', or '>' are split into separate entries.
+    - HTML entities like '&gt;' are decoded before splitting.
+    - Only characters allowed by CKAN tags are kept:
+      alphanumeric, spaces, and the symbols  - _ . , ; ' ( )
+    """
+    import html
+    import re
+
+    cleaned = []
+    for keyword in keyword_list:
+        if not isinstance(keyword, str):
+            continue
+        # Decode HTML entities (e.g. &gt; -> >)
+        keyword = html.unescape(keyword)
+        # Split on common delimiters: |, >, and newlines
+        parts = re.split(r"[|>\n]+", keyword)
+        for part in parts:
+            # Strip whitespace
+            part = part.strip()
+            # Remove characters not allowed by CKAN tag validation
+            part = re.sub(r"[^\w\s\-_.,;'()/]", "", part, flags=re.UNICODE)
+            # Collapse multiple spaces
+            part = re.sub(r"\s+", " ", part).strip()
+            if part:
+                cleaned.append(part)
+    # Deduplicate while preserving order
+    seen = set()
+    deduped = []
+    for kw in cleaned:
+        if kw not in seen:
+            seen.add(kw)
+            deduped.append(kw)
+    return deduped
+
+
+def strip_keywords(keywords):
+    """Strips whitespace and sanitizes each keyword in either language.
+
+    Splits keywords on '|', '>', and newlines, removes characters
+    not allowed by CKAN, and deduplicates.
+    """
+    stripped = {
+        "en": _sanitize_keyword_list(keywords.get("en", [])),
+        "fr": _sanitize_keyword_list(keywords.get("fr", [])),
+    }
+
+    return scrub_keys(stripped)
+
+
+def date_from_datetime_str(datetime_str):
+    "Returns date part of ISO datetime stored as string"
+    if not datetime_str:
+        return None
+    return (datetime_str or "")[:10]
+
+
+def fix_lat_long_polygon(polygon):
+    """Change lat,long to long, lat, which is what is expected in the XML"""
+    if not polygon:
+        return ""
+    fixed = []
+    cleanPolygon = polygon.replace(", ", ",")
+    coords = cleanPolygon.split(" ")
+    for coord in coords:
+        [lat, long] = coord.split(",")
+        fixed.append(",".join([long, lat]))
+    return " ".join(fixed)
+
+
+# Maps legacy (pre-ISO) resourceType values to valid ISO 19115
+# MD_TopicCategoryCode values.
+LEGACY_TOPIC_CATEGORY = {
+    "oceanographic": "oceans",
+    "biological": "biota",
+}
+
+
+def normalize_topic_categories(record):
+    """Map the firebase resourceType field to ISO 19115 topic categories.
+
+    Reads the `resourceType` array, falling back to the deprecated `category`
+    string field when it is absent, and normalizes legacy values to their ISO
+    equivalents. Returns an empty list when nothing is set, in which case
+    metadata-xml applies its default ("oceans").
+    """
+    values = record.get("resourceType")
+    if not values:
+        category = record.get("category")
+        values = [category] if category else []
+    if isinstance(values, str):
+        values = [values]
+    return [LEGACY_TOPIC_CATEGORY.get(value, value) for value in values if value]
+
+
+def format_taxa(taxa):
+    taxaKeywords = []
+    if isinstance(taxa, str):
+        taxa = [taxa]
+    for t in taxa:
+        taxaKeywords = taxaKeywords + ",".join(
+            filter(
+                None,
+                (
+                    t.get("kingdom"),
+                    t.get("phylum"),
+                    t.get("class"),
+                    t.get("order"),
+                    t.get("family"),
+                    t.get("genus"),
+                    t.get("species"),
+                ),
+            )
+        ).split(",")
+
+    return taxaKeywords
+
+
+def _build_spatial(record, polygon):
+    """Build the spatial section, tolerating missing map or vertical extent data."""
+    spatial = {}
+    map_data = record.get("map", {})
+    if map_data:
+        if not polygon and all(
+            map_data.get(k) is not None for k in ("west", "south", "east", "north")
+        ):
+            spatial["bbox"] = [
+                float(map_data["west"]),
+                float(map_data["south"]),
+                float(map_data["east"]),
+                float(map_data["north"]),
+            ]
+        if polygon:
+            spatial["polygon"] = fix_lat_long_polygon(polygon)
+        if map_data.get("description"):
+            spatial["description"] = map_data["description"]
+        if map_data.get("descriptionIdentifier"):
+            spatial["descriptionIdentifier"] = map_data["descriptionIdentifier"]
+
+    if record.get("noVerticalExtent"):
+        spatial["vertical"] = [0, 0]
+        spatial["vertical_positive"] = "heightPositive"
+        spatial["vertical_epsg"] = epsg.get("5829")
+    elif (
+        record.get("verticalExtentMin") is not None
+        and record.get("verticalExtentMax") is not None
+    ):
+        spatial["vertical"] = [
+            float(record["verticalExtentMin"]),
+            float(record["verticalExtentMax"]),
+        ]
+        if record.get("verticalExtentDirection"):
+            spatial["vertical_positive"] = record["verticalExtentDirection"]
+        if record.get("verticalExtentEPSG"):
+            spatial["vertical_epsg"] = epsg.get(record["verticalExtentEPSG"])
+
+    return spatial
+
+
+def record_json_to_yaml(record):
+    "Generate dictinary expected by metadata-xml"
+
+    user_id = record.get("userID")
+    record_id = record.get("recordID")
+    language = record.get("language")
+    region = record.get("region")
+
+    base_url = "https://cioos-siooc.github.io/metadata-entry-form#"
+    full_url = f"{base_url}/{language}/{region}/{user_id}/{record_id}"
+
+    polygon = record.get("map", {}).get("polygon", "")
+
+    record_yaml = {
+        "metadata": {
+            "naming_authority": "ca.cioos",
+            "identifier": record.get("identifier"),
+            "language": record.get("language"),
+            "maintenance_note": "Generated from " + full_url,
+            "use_constraints": {
+                "limitations": record.get("limitations", "None"),
+                "licence": licenses.get(
+                    record.get(
+                        "license",
+                    )
+                ),
+            },
+            "comment": record.get("comment"),
+            "history": record.get("history"),
+            "dates": {
+                "revision": record.get("created"),
+                "publication": date_from_datetime_str(record.get("timeFirstPublished")),
+            },
+            "scope": record.get("metadataScopeIso") or record.get("metadataScope"),
+            "metadataScope": record.get("metadataScope", ""),
+            "resourceType": record.get("resourceType", []),
+        },
+        "spatial": _build_spatial(record, polygon),
+        "identification": {
+            "title": record.get("title"),
+            "identifier": record.get("datasetIdentifier"),
+            "abstract": record.get("abstract"),
+            "associated_resources": record.get("associated_resources", []),
+            "dates": {
+                "creation": date_from_datetime_str(record.get("dateStart")),
+                "publication": date_from_datetime_str(record.get("datePublished")),
+                "revision": date_from_datetime_str(record.get("dateRevised")),
+            },
+            "keywords": {
+                "default": strip_keywords(record.get("keywords", {"en": [], "fr": []})),
+                "eov": {
+                    "en": record.get("eov", []),
+                    "fr": eovs_to_fr(record.get("eov", [])),
+                },
+                "taxa": {
+                    "en": format_taxa(record.get("taxa", [])),
+                    "fr": format_taxa(record.get("taxa", [])),
+                },
+            },
+            "topic_category": normalize_topic_categories(record),
+            "temporal_begin": record.get("dateStart"),
+            "temporal_end": record.get("dateEnd"),
+            "status": record.get("status"),
+            "project": record.get("projects"),
+            "progress_code": record.get("progress"),
+            "edition": record.get("edition"),
+        },
+        "contact": [
+            {
+                "roles": contact.get("role"),
+                "organization": {
+                    "name": contact.get("orgName"),
+                    "url": contact.get("orgURL"),
+                    "address": contact.get("orgAdress"),
+                    "city": contact.get("orgCity"),
+                    "country": contact.get("orgCountry"),
+                    "email": contact.get("orgEmail"),
+                    "ror": contact.get("orgRor"),
+                },
+                "individual": {
+                    "name": ", ".join(
+                        remove_nones(
+                            [
+                                contact.get("lastName") or None,
+                                contact.get("givenNames") or None,
+                            ]
+                        )
+                    ),
+                    "position": contact.get("indPosition"),
+                    "email": contact.get("indEmail"),
+                    "orcid": contact.get("indOrcid"),
+                },
+                "inCitation": contact.get("inCitation"),
+            }
+            for contact in record.get("contacts", [])
+        ],
+        "distribution": [
+            {
+                "url": distribution.get("url"),
+                "name": distribution.get("name"),
+                "description": distribution.get("description"),
+            }
+            for distribution in record.get("distribution", [])
+        ],
+    }
+
+    if record.get("noTaxa") and record_yaml.get("identification", {}).get("keywords"):
+        record_yaml["identification"]["keywords"].pop("taxa", None)
+
+    if record.get("noPlatform"):
+        record_yaml["instruments"] = record.get("instruments")
+    else:
+        instrumentsList = record.get("instruments", [])
+        platformList = record.get("platforms", [])
+        # If platforms has only one element, add it to the platform dict and add all instruments as a key
+        if len(platformList) == 1:
+            record["platforms"][0]["instruments"] = instrumentsList
+            record_yaml["platform"] = record["platforms"]
+        # If platforms has more than one element, add all platforms and match instruments by platform ID
+        else:
+            for platform in platformList:
+                instruments = []
+                for instrument in instrumentsList:
+                    if instrument["platform"] == platform["id"]:
+                        instruments.append(instrument)
+                if len(instruments) > 0:
+                    platform["instruments"] = instruments
+
+            record_yaml["platform"] = record.get("platforms", [])
+
+    # If there's no distributor set, set it to the data contact (owner)
+    all_roles = [contact["role"] for contact in record["contacts"]]
+    all_roles_flat = [j for sub in all_roles for j in sub]
+
+    if "distributor" not in all_roles_flat:
+        for contact in record["contacts"]:
+            if "owner" in contact["role"]:
+                contact["role"] += ["distributor"]
+
+    organization = record.get("organization")
+
+    if organization:
+        organization = {
+            "roles": ["owner"],
+            "organization": {"name": record.get("organization")},
+        }
+
+        record_yaml["contact"] = [organization] + record_yaml["contact"]
+
+    return scrub_dict(record_yaml)

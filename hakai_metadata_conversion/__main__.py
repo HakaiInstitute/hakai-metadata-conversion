@@ -1,5 +1,5 @@
 
-# Convert one metadata format into another. 
+# Convert one metadata format into another.
 
 # Example Usage:
 
@@ -13,64 +13,33 @@
 #     --output-encoding utf-8 \;
 
 
-import json
 from glob import glob
 from pathlib import Path
 
 import click
-import requests
-import yaml
 from loguru import logger
 
-from hakai_metadata_conversion import citation_cff, erddap
-
-output_formats = {
-    "json": lambda x: json.dumps(x, indent=2),
-    "yaml": lambda x: yaml.dump(x, default_flow_style=False),
-    "erddap": erddap.global_attributes,
-    "cff": citation_cff.citation_cff,
-}
-
-input_formats = ["json", "yaml"]
+from hakai_metadata_conversion import erddap
+from hakai_metadata_conversion.record import OUTPUT_FORMATS, InputSchemas, Record
 
 
-@logger.catch(reraise=True)
-def load(input, format, encoding="utf-8") -> dict:
-    """Load a metadata record from a file."""
+def load(file: str, schema: str = "CIOOS"):
+    """Load a metadata record from a file or URL."""
+    record = (
+        Record(source=file, schema=InputSchemas[schema])
+        .load()
+        .convert_to_cioos_schema()
+    )
 
-    if input.startswith("http"):
-        response = requests.get(input)
-        response.raise_for_status()
-        data = response.text
-    else:
-        data = Path(input).read_text(encoding=encoding)
+    if not record.metadata:
+        raise ValueError(f"No metadata record found in file {file}.")
 
-    if format == "json":
-        return json.loads(data, encoding=encoding)
-    elif format == "yaml":
-        return yaml.safe_load(data)
-
-    with open(input) as f:
-        return input_formats[format](f)
+    return record.metadata
 
 
-def converter(record, format) -> str:
-    """Run the conversion to the desired format."""
-    if format == "json":
-        return json.dumps(record, indent=2)
-    elif format == "yaml":
-        return yaml.dump(record)
-    elif format == "erddap":
-        return erddap.global_attributes(record)
-    elif format == "cff":
-        return citation_cff.citation_cff(record)
-    else:
-        raise ValueError(f"Unknown output format: {format}")
-
-
-@click.group(name="hakai-metadata-conversion")
+@click.group(name="cioos-metadata-conversion")
 def cli():
-    """Hakai Metadata Conversion CLI.
+    """CIOOS Metadata Conversion CLI.
     Convert metadata records to different metadata formats or standards.
     """
     pass
@@ -85,11 +54,11 @@ cli.add_command(erddap.update, name="erddap-update")
     "--recursive", "-r", is_flag=True, help="Process files recursively.", default=False
 )
 @click.option(
-    "--input-file-format",
+    "--input-schema",
     required=True,
-    default="yaml",
+    default="CIOOS",
     help="Input file format (json or yaml).",
-    type=click.Choice(list(input_formats)),
+    type=click.Choice(InputSchemas.__members__.keys()),
     show_default=True,
 )
 @click.option(
@@ -117,7 +86,7 @@ cli.add_command(erddap.update, name="erddap-update")
     "-f",
     required=True,
     help="Output format",
-    type=click.Choice(list(output_formats.keys())),
+    type=click.Choice(OUTPUT_FORMATS.keys()),
 )
 @click.option(
     "--output-encoding",
@@ -136,7 +105,7 @@ def convert(
     input,
     output_format: str,
     recursive: bool = False,
-    input_file_format: str = "yaml",
+    input_schema: str = "CIOOS",
     encoding: str = "utf-8",
     output_dir: str = ".",
     output_file: str = None,
@@ -145,7 +114,13 @@ def convert(
     """Convert metadata records to different metadata formats or standards."""
 
     logger.info("Loading input {}", input)
-    if input.startswith("http"):
+    if (
+        input.startswith(("http", "10.", "doi:", "DOI:"))
+        or input.isdigit()
+        or input_schema in ["doi", "obis"]
+    ):
+        # URLs, DOIs, PDC CCIN reference numbers, and OBIS/DOI schemas are
+        # passed through as-is
         files = [input]
     else:
         files = glob(input, recursive=recursive)
@@ -159,22 +134,26 @@ def convert(
     returned_output = ""
     for file in files:
         logger.debug("Processing file {}", file)
-        input_file_path = Path(file)
+        record = (
+            Record(
+                source=file,
+                schema=InputSchemas[input_schema],
+            )
+            .load(encoding=encoding)
+            .convert_to_cioos_schema()
+        )
 
-        # Load metadata record
-        record = load(file, input_file_format, encoding=encoding)
-
-        if not record:
+        if not record.metadata:
             logger.error("No metadata record found in file {}.", file)
             continue
 
         logger.debug(f"Converting to {output_format}")
-        converted_record = converter(record, output_format)
+        converted_record = record.convert_to(output_format)
 
         # Generate output file path
-        if output_dir and not output_file:
+        if output_dir and not output_file and record.source_is_path():
             output_file = (
-                Path(output_dir) / input_file_path.with_suffix(f".{output_format}").name
+                Path(output_dir) / Path(file).with_suffix(f".{output_format}").name
             )
         elif output_file:
             output_file = Path(output_file)
@@ -185,6 +164,12 @@ def convert(
             output_file.write_text(converted_record, encoding=output_encoding)
         else:
             returned_output += "\n" + converted_record
+
+    if not output_file:
+        logger.info("Returning converted output")
+        print(returned_output)
+    else:
+        logger.info("Conversion completed.")
 
     return returned_output
 

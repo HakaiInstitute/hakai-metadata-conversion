@@ -17,8 +17,8 @@ def test_xml(record):
     list(set(glob("tests/records/hakai-metadata-entry-form-files/**/*.yaml", recursive=True))
          - set(glob("tests/records/hakai-metadata-entry-form-files/unpublished/**/*.yaml", recursive=True))),
 )
-def test_hakai_records_xml(file):
-    record = load(file, "yaml")
+def test_cioos_records_xml(file):
+    record = load(file, "CIOOS")
     result = xml(record)
 
     assert result

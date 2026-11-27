@@ -7,6 +7,10 @@ from hakai_metadata_conversion import citation_cff
 from hakai_metadata_conversion.__main__ import load
 from hakai_metadata_conversion.citation_cff import _get_unique_authors
 
+# cffconvert pins jsonschema<4, so it runs in its own uvx environment rather
+# than the project's.
+CFFCONVERT = ["uvx", "--from", "cffconvert==2.0.0", "cffconvert"]
+
 @pytest.mark.core
 def test_citation_cff(record):
     result = citation_cff.citation_cff(record, output_format=None, language="en")
@@ -33,12 +37,11 @@ def test_ctation_cff_yaml(record, tmp_path):
 
 @pytest.mark.core
 def test_citation_cff_validation(record, tmp_path):
-
     result = citation_cff.citation_cff(record, output_format="yaml", language="en")
     (tmp_path / "CITATION.cff").write_text(result, encoding="utf-8")
     # run cffconvert validate cli
     result = subprocess.run(
-        ["cffconvert", "--validate", "-i", str(tmp_path / "CITATION.cff")],
+        [*CFFCONVERT, "--validate", "-i", str(tmp_path / "CITATION.cff")],
         capture_output=True,
     )
     assert result.returncode == 0, result.stderr
@@ -50,8 +53,8 @@ def test_citation_cff_validation(record, tmp_path):
     list(set(glob("tests/records/hakai-metadata-entry-form-files/**/*.yaml", recursive=True))
          - set(glob("tests/records/hakai-metadata-entry-form-files/unpublished/**/*.yaml", recursive=True))),
 )
-def test_hakai_metadata_entry_form_files_cff(file, tmp_path):
-    data = load(file, "yaml")
+def test_cioos_metadata_entry_form_files_cff(file, tmp_path):
+    data = load(file, "CIOOS")
     result = citation_cff.citation_cff(data, output_format="yaml", language="en")
     assert result
 
@@ -59,7 +62,7 @@ def test_hakai_metadata_entry_form_files_cff(file, tmp_path):
     # validate cff
     (tmp_path / "CITATION.cff").write_text(result, encoding="utf-8")
     validation_result = subprocess.run(
-        ["cffconvert", "--validate", "-i", str(tmp_path / "CITATION.cff")],
+        [*CFFCONVERT, "--validate", "-i", str(tmp_path / "CITATION.cff")],
         capture_output=True,
     )
     assert validation_result.returncode == 0, validation_result.stderr.decode("utf-8")
@@ -67,18 +70,18 @@ def test_hakai_metadata_entry_form_files_cff(file, tmp_path):
 @pytest.mark.metadataFiles
 @pytest.mark.parametrize(
     "file",
-        list(set(glob("tests/records/hakai-metadata-entry-form-files/**/*.yaml", recursive=True))
+    list(set(glob("tests/records/hakai-metadata-entry-form-files/**/*.yaml", recursive=True))
          - set(glob("tests/records/hakai-metadata-entry-form-files/unpublished/**/*.yaml", recursive=True))),
 )
-def test_hakai_metadata_entry_form_files_cff_fr(file, tmp_path):
-    data = load(file, "yaml")
+def test_cioos_metadata_entry_form_files_cff_fr(file, tmp_path):
+    data = load(file, "CIOOS")
     result_fr = citation_cff.citation_cff(data, output_format="yaml", language="fr")
     assert result_fr
 
     # validate cff
     (tmp_path / "CITATION.cff").write_text(result_fr, encoding="utf-8")
     validation_result = subprocess.run(
-        ["cffconvert", "--validate", "-i", str(tmp_path / "CITATION.cff")],
+        [*CFFCONVERT, "--validate", "-i", str(tmp_path / "CITATION.cff")],
         capture_output=True,
     )
     assert validation_result.returncode == 0, validation_result.stderr.decode("utf-8")
@@ -165,3 +168,34 @@ def test_preserves_order():
     result = _get_unique_authors(_make_record(contacts))
     assert result[0]["family-names"] == "Smith"
     assert result[1]["name"] == "Second Org"
+
+@pytest.mark.core
+@pytest.mark.parametrize(
+    "organization", [{}, {"name": ""}, {"city": "Victoria"}], ids=["empty", "blank-name", "no-name-key"]
+)
+def test_organization_without_name_is_dropped(organization):
+    """A contact whose organization carries no name used to raise KeyError and take
+    the whole record's regeneration down with it."""
+    contact = {"inCitation": True, "roles": ["author"], "organization": organization}
+    assert _get_unique_authors(_make_record([contact])) == []
+
+@pytest.mark.core
+def test_nameless_organization_does_not_hide_other_authors():
+    contacts = [
+        {"inCitation": True, "roles": ["author"], "organization": {"city": "Victoria"}},
+        _org_contact(["author"], org_name="Named Org"),
+    ]
+    result = _get_unique_authors(_make_record(contacts))
+    assert [author["name"] for author in result] == ["Named Org"]
+
+@pytest.mark.core
+def test_nameless_organization_left_out_of_contacts(record):
+    record["contact"].append(
+        {
+            "inCitation": False,
+            "roles": ["pointOfContact"],
+            "organization": {"city": "Victoria"},
+        }
+    )
+    result = citation_cff.citation_cff(record, output_format=None, language="en")
+    assert {} not in result["contact"]
