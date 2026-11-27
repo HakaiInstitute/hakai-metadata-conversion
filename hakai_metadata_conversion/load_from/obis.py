@@ -9,6 +9,8 @@ from loguru import logger
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
+from hakai_metadata_conversion.utils import get_path
+
 try:
     import duckdb
 except ImportError:  # pragma: no cover - duckdb is a declared dependency
@@ -1055,16 +1057,6 @@ def _trim_date(value):
     return value.split(".")[0] + "Z" if value else ""
 
 
-def _get_path(data, path):
-    """Read a dotted path (`feed.url`), returning None if any hop is missing."""
-    node = data
-    for key in path.split("."):
-        if not isinstance(node, dict):
-            return None
-        node = node.get(key)
-    return node
-
-
 _TRANSFORMS = {
     "add_fr": add_fr,
     "iso_date": _trim_date,
@@ -1119,7 +1111,7 @@ def _template_values(obis_data, entry):
     if when == "archive":
         return [obis_data["archive"]] if obis_data.get("archive") else []
     if when == "feed_url":
-        feed_url = _get_path(obis_data, entry["source"])
+        feed_url = get_path(obis_data, entry["source"])
         return [feed_url] if feed_url else []
     if when == "each_tag":
         return list(obis_data.get(entry["source"]) or [])

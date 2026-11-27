@@ -5,6 +5,22 @@ def drop_empty_values(dictionary):
     return {k: v for k, v in dictionary.items() if v}
 
 
+def get_path(data, path, default=None):
+    """Read a dotted path (`metadata.use_constraints.licence`), returning
+    `default` if any hop is missing.
+
+    A hop that isn't a dict counts as missing: OBIS and DataCite both hand back
+    fields that are sometimes a string and sometimes a nested object, and
+    walking into the string form would raise rather than fall back.
+    """
+    node = data
+    for key in path.split("."):
+        if not isinstance(node, dict):
+            return default
+        node = node.get(key)
+    return default if node is None else node
+
+
 def camel_to_title(s: str) -> str:
     """
     Convert camelCase / PascalCase / mixed-with_separators to Title Case.

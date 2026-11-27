@@ -1247,8 +1247,5 @@ class TestMappingFile:
     def test_trim_date(self, value, expected):
         assert obis_module._trim_date(value) == expected
 
-    def test_get_path_handles_missing_hops(self):
-        assert obis_module._get_path({"feed": {"url": "u"}}, "feed.url") == "u"
-        assert obis_module._get_path({"feed": {}}, "feed.url") is None
-        assert obis_module._get_path({}, "feed.url") is None
-        assert obis_module._get_path({"feed": "not-a-dict"}, "feed.url") is None
+    # _get_path moved to hakai_metadata_conversion.utils.get_path; its tests
+    # live in tests/test_utils.py.
