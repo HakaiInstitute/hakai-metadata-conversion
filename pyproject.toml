@@ -20,7 +20,9 @@ dependencies = [
     "google-auth>=2.40.3",
     "google-oauth>=1.0.1",
     "duckdb>=1.0.0",
-    "deepdiff>=8.6.1",
+    # 8.6.2 carries the fix for CVE-2026-33155. Held below 9 deliberately: the
+    # major bump runs through the OBIS loader and wants testing on its own.
+    "deepdiff>=8.6.2,<9",
     # Security floors for transitive dependencies. These are not imported
     # directly; they are named here because uv.lock on its own did not survive a
     # merge - reseeding the lock from the upstream branch took certifi back from
